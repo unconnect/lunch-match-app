@@ -21,10 +21,23 @@ Eine voll funktionierende Web-App, in der eine Person:
 ## Architektur
 
 - **Next.js 14 (App Router) + TypeScript**, ein Projekt für UI und API (Route Handlers unter `app/api/*`). Kein separates Backend.
+- **Styling & Komponenten**: Tailwind CSS + shadcn/ui (Radix-UI-basierte Copy-in-Komponenten). Kein zusätzliches Laufzeit-Komponentenpaket, volle Kontrolle über den eigenen Look (siehe Abschnitt "Visuelles Design").
+- **Client-seitiges Datenmanagement**: TanStack Query für Server-State (Ergebnislisten, Nachrichten-Polling, Caching/Invalidation nach Mutationen wie Anfrage senden oder Zusagen/Absagen).
+- **Formulare & Validierung**: react-hook-form + zod, sowohl client- als auch serverseitig (gleiches Schema in den Route Handlers wiederverwendet).
+- **Karten-Integration**: react-leaflet als React-Wrapper um Leaflet.
 - **PostgreSQL + Prisma** als Datenhaltung, lokal via Docker Compose (kein externer Cloud-Dienst nötig für Entwicklung).
 - **Auth**: NextAuth mit eigenem Credentials-Provider; Account-ID + Recovery-Key übernehmen die Rolle von Benutzername/Passwort. Session als httpOnly-Cookie.
 - **Karten & Geodaten**: Leaflet + OpenStreetMap-Tiles fürs Kartenrendering, Nominatim für Geocoding (Adresse/PLZ/Ort → Koordinaten), Overpass API für Treffpunkt-Vorschläge (Restaurants/Cafés inkl. Küche-Tags für vegetarisch/vegan-Filter). Alle drei Dienste sind kostenlos nutzbar und benötigen keinen API-Key.
 - Dieses Repo (`lunch-match-app`) ist eigenständig und unabhängig vom Thesis-Repo (`Bachelor-Thesis`); es liegt als Nachbarordner auf derselben Verzeichnisebene.
+
+## Visuelles Design
+
+Die Thesis-Wireframes (`abbildungen/Wireframes/*.png` im Thesis-Repo) legen **Layout und Struktur** der Ansichten fest (Navigation, Anordnung von Karte/Liste/Filter, Dashboard-Komponenten, Nachrichten-Aufbau), sind aber reine Graustufen-Wireframes ohne Farbpalette, Typografie oder Markenlook. Vor der Implementierung wird deshalb ein eigenständiger, kurzer Design-Pass durchgeführt (via `frontend-design`-Skill):
+
+- Festlegung einer Farbpalette (inkl. Dark-Mode-Fähigkeit), Typografie und Spacing-Skala als Tailwind-Theme.
+- Übertragung der Wireframe-Layouts in einen eigenen visuellen Stil (keine 1:1-Graustufen-Optik), umgesetzt als shadcn/ui-Theme.
+- Ergebnis ist ein kleines Set an Referenz-Screens (z. B. Match-finden, Dashboard-Ausschnitt, Nachrichten-Detail) als Grundlage für die spätere Implementierung — kein separates Figma/Design-Tool, sondern direkt im Code (Storybook-freie Ad-hoc-Vorschau via Dev-Server).
+- Dieser Design-Pass ist die erste Phase des Implementierungsplans (vor den Feature-Flows), damit alle danach gebauten Screens auf demselben Theme aufbauen statt der Wireframe-Optik zu folgen.
 
 ## Anonyme Identität (Threema-Style)
 
