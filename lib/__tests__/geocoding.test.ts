@@ -37,4 +37,10 @@ describe("geocodeAddress", () => {
 
     expect(await geocodeAddress("Berlin")).toBeNull();
   });
+
+  it("returns null when fetch rejects with a network error", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network error")));
+
+    expect(await geocodeAddress("Berlin")).toBeNull();
+  });
 });
