@@ -1,0 +1,86 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum LocationPrecision {
+  EXACT
+  POSTAL_CODE
+  CITY
+}
+
+enum Karrierelevel {
+  ANGESTELLT
+  MITTLERES_MANAGEMENT
+  LEITEND
+  GESCHAEFTSFUEHRUNG
+}
+
+enum MatchType {
+  MANUAL
+  MATCH_ME
+}
+
+enum MatchStatus {
+  OPEN
+  ACCEPTED
+  DECLINED
+}
+
+model User {
+  id                String              @id @default(cuid())
+  accountId         String              @unique
+  recoveryKeyHash   String
+  alias             String?
+  locationLabel     String?
+  lat               Float?
+  lng               Float?
+  locationPrecision LocationPrecision?
+  branche           String?
+  brancheVisible    Boolean             @default(false)
+  position          String?
+  karrierelevel     Karrierelevel?
+  schritteziel      Int?
+  createdAt         DateTime            @default(now())
+
+  sentRequests     MatchRequest[] @relation("FromUser")
+  receivedRequests MatchRequest[] @relation("ToUser")
+  messages         Message[]
+}
+
+model MatchRequest {
+  id               String      @id @default(cuid())
+  fromUserId       String
+  toUserId         String
+  type             MatchType
+  status           MatchStatus @default(OPEN)
+  proposedTimeslot DateTime?
+  meetingPointLat  Float?
+  meetingPointLng  Float?
+  meetingPointName String?
+  createdAt        DateTime    @default(now())
+
+  fromUser User      @relation("FromUser", fields: [fromUserId], references: [id])
+  toUser   User      @relation("ToUser", fields: [toUserId], references: [id])
+  messages Message[]
+
+  @@index([fromUserId])
+  @@index([toUserId])
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  matchRequestId String
+  senderId       String
+  text           String
+  createdAt      DateTime @default(now())
+
+  matchRequest MatchRequest @relation(fields: [matchRequestId], references: [id])
+  sender       User         @relation(fields: [senderId], references: [id])
+
+  @@index([matchRequestId])
+}
