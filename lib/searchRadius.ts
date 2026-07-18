@@ -9,5 +9,5 @@ export function calculateSearchRadiusMeters(schritteziel?: number | null): numbe
 }
 
 export function metersToSteps(meters: number): number {
-  return Math.round(meters / STEP_LENGTH_METERS);
+  return Math.round(Math.max(0, meters) / STEP_LENGTH_METERS);
 }

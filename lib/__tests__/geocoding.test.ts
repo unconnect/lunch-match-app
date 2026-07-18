@@ -43,4 +43,49 @@ describe("geocodeAddress", () => {
 
     expect(await geocodeAddress("Berlin")).toBeNull();
   });
+
+  it("returns null when the response has non-numeric coordinates", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => [{ lat: "not-a-number", lon: "13.4" }],
+      })
+    );
+
+    expect(await geocodeAddress("Berlin")).toBeNull();
+  });
+
+  it("throttles requests to at most 1 per second", async () => {
+    // Use a fresh module instance so this test's rate-limit state isn't
+    // polluted by (or doesn't pollute) the other tests in this file.
+    vi.resetModules();
+    vi.useFakeTimers();
+
+    try {
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => [{ lat: "52.5", lon: "13.4" }],
+      });
+      vi.stubGlobal("fetch", fetchMock);
+
+      const { geocodeAddress: freshGeocodeAddress } = await import("@/lib/geocoding");
+
+      const first = freshGeocodeAddress("first query");
+      await vi.advanceTimersByTimeAsync(0);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      const second = freshGeocodeAddress("second query");
+      await vi.advanceTimersByTimeAsync(500);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(500);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+
+      await Promise.all([first, second]);
+    } finally {
+      vi.useRealTimers();
+      vi.resetModules();
+    }
+  });
 });

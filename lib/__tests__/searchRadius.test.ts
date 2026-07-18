@@ -27,4 +27,8 @@ describe("metersToSteps", () => {
     expect(metersToSteps(730)).toBe(1000);
     expect(metersToSteps(0)).toBe(0);
   });
+
+  it("clamps negative input to zero instead of returning a negative step count", () => {
+    expect(metersToSteps(-730)).toBe(0);
+  });
 });
