@@ -1,8 +1,17 @@
 // lib/__tests__/geocoding.test.ts
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { geocodeAddress } from "@/lib/geocoding";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { geocodeAddress, __resetThrottleForTests } from "@/lib/geocoding";
 
 describe("geocodeAddress", () => {
+  beforeEach(() => {
+    // The throttle's "last request" timestamp is module-level state shared
+    // across every test in this file. Without resetting it, each test after
+    // the first would inherit a recent timestamp and genuinely block on the
+    // real ~1s Nominatim throttle. Reset before each test so tests stay fast
+    // and independent of execution order.
+    __resetThrottleForTests();
+  });
+
   afterEach(() => {
     vi.unstubAllGlobals();
   });

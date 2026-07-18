@@ -26,6 +26,15 @@ function waitForRateLimitSlot(): Promise<void> {
   return scheduled;
 }
 
+// TEST-ONLY: resets the module-level throttle state. Production code must
+// never call this. It exists solely so test files can clear the shared
+// throttle between test cases and avoid inheriting real-time waits from
+// whichever test happened to run first.
+export function __resetThrottleForTests(): void {
+  lastRequestTime = 0;
+  requestQueue = Promise.resolve();
+}
+
 export async function geocodeAddress(query: string): Promise<GeocodeResult | null> {
   try {
     await waitForRateLimitSlot();
