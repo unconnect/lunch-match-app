@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import { signIn } from "next-auth/react";
@@ -36,17 +37,24 @@ export default function LandingPage() {
     if (!identity) return;
     setSigningIn(true);
     setSignInError(null);
-    const result = await signIn("credentials", {
-      accountId: identity.accountId,
-      recoveryKey: identity.recoveryKey,
-      redirect: false,
-    });
-    setSigningIn(false);
-    if (result?.error) {
-      setSignInError("Anmeldung fehlgeschlagen. Bitte versuche es erneut.");
-      return;
+    try {
+      const result = await signIn("credentials", {
+        accountId: identity.accountId,
+        recoveryKey: identity.recoveryKey,
+        redirect: false,
+      });
+      if (result?.error) {
+        setSignInError("Anmeldung fehlgeschlagen. Bitte versuche es erneut.");
+        return;
+      }
+      router.push("/profil");
+    } catch {
+      setSignInError(
+        "Verbindung fehlgeschlagen. Bitte überprüfe deine Internetverbindung und versuche es erneut.",
+      );
+    } finally {
+      setSigningIn(false);
     }
-    router.push("/profil");
   }
 
   return (
@@ -66,11 +74,11 @@ export default function LandingPage() {
           >
             {createIdentityMutation.isPending ? "Wird erstellt…" : "Neues Konto erstellen"}
           </button>
-          <a href="/konto-wiederherstellen" className="text-sm underline">
+          <Link href="/konto-wiederherstellen" className="text-sm underline">
             Ich habe bereits ein Konto
-          </a>
+          </Link>
           {createIdentityMutation.isError && (
-            <p className="text-sm text-red-600">{(createIdentityMutation.error as Error).message}</p>
+            <p className="text-sm text-red-600">{createIdentityMutation.error.message}</p>
           )}
         </>
       )}

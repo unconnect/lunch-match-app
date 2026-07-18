@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -25,12 +26,18 @@ export default function KontoWiederherstellenPage() {
 
   async function onSubmit(values: FormValues) {
     setServerError(null);
-    const result = await signIn("credentials", { ...values, redirect: false });
-    if (result?.error) {
-      setServerError("Ungültige Account-ID oder Recovery-Key.");
-      return;
+    try {
+      const result = await signIn("credentials", { ...values, redirect: false });
+      if (result?.error) {
+        setServerError("Ungültige Account-ID oder Recovery-Key.");
+        return;
+      }
+      router.push("/profil");
+    } catch {
+      setServerError(
+        "Verbindung fehlgeschlagen. Bitte überprüfe deine Internetverbindung und versuche es erneut.",
+      );
     }
-    router.push("/profil");
   }
 
   return (
@@ -58,9 +65,9 @@ export default function KontoWiederherstellenPage() {
         </button>
         {serverError && <p className="text-sm text-red-600">{serverError}</p>}
       </form>
-      <a href="/" className="text-sm underline">
+      <Link href="/" className="text-sm underline">
         Neues Konto erstellen
-      </a>
+      </Link>
     </main>
   );
 }
