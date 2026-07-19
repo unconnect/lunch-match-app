@@ -9,19 +9,21 @@
     --foreground: 20 15% 15%;
     --card: 30 25% 100%;
     --card-foreground: 20 15% 15%;
-    --primary: 21 90% 48%;
+    /* --primary/--accent are darkened vs. a naive amber/green so that
+       light text on them clears WCAG AA (4.5:1): 4.70:1 and 4.94:1. */
+    --primary: 21 90% 40%;
     --primary-foreground: 30 20% 98%;
     --secondary: 160 30% 92%;
     --secondary-foreground: 160 40% 20%;
     --muted: 30 15% 92%;
     --muted-foreground: 20 10% 40%;
-    --accent: 160 40% 40%;
+    --accent: 160 40% 34%;
     --accent-foreground: 30 20% 98%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 30 20% 98%;
     --border: 30 15% 85%;
     --input: 30 15% 85%;
-    --ring: 21 90% 48%;
+    --ring: 21 90% 40%;
     --radius: 0.5rem;
   }
 
