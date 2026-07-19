@@ -5,6 +5,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import { signIn } from "next-auth/react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 
 type Step = "start" | "created";
 
@@ -67,18 +71,17 @@ export default function LandingPage() {
             Finde jemanden für eine gemeinsame Mittagspause in deiner Nähe — ganz ohne
             E-Mail-Adresse oder Passwort.
           </p>
-          <button
+          <Button
             onClick={() => createIdentityMutation.mutate()}
             disabled={createIdentityMutation.isPending}
-            className="rounded bg-slate-900 px-4 py-2 text-white disabled:opacity-50"
           >
             {createIdentityMutation.isPending ? "Wird erstellt…" : "Neues Konto erstellen"}
-          </button>
-          <Link href="/konto-wiederherstellen" className="text-sm underline">
+          </Button>
+          <Link href="/konto-wiederherstellen" className="text-sm text-muted-foreground underline hover:text-foreground">
             Ich habe bereits ein Konto
           </Link>
           {createIdentityMutation.isError && (
-            <p className="text-sm text-red-600">{createIdentityMutation.error.message}</p>
+            <p className="text-sm text-destructive">{createIdentityMutation.error.message}</p>
           )}
         </>
       )}
@@ -89,28 +92,28 @@ export default function LandingPage() {
             Speichere diese Zugangsdaten jetzt sicher ab — sie werden nur einmal angezeigt und
             können nicht wiederhergestellt werden, wenn du sie verlierst.
           </p>
-          <div className="rounded border p-4">
-            <p className="text-sm text-slate-500">Account-ID</p>
-            <p className="font-mono text-lg">{identity.accountId}</p>
-            <p className="mt-2 text-sm text-slate-500">Recovery-Key</p>
-            <p className="break-all font-mono text-lg">{identity.recoveryKey}</p>
-          </div>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
+          <Card>
+            <CardContent className="pt-4">
+              <p className="text-sm text-muted-foreground">Account-ID</p>
+              <p className="font-mono text-lg">{identity.accountId}</p>
+              <p className="mt-2 text-sm text-muted-foreground">Recovery-Key</p>
+              <p className="break-all font-mono text-lg">{identity.recoveryKey}</p>
+            </CardContent>
+          </Card>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="confirm-saved"
               checked={confirmed}
-              onChange={(event) => setConfirmed(event.target.checked)}
+              onCheckedChange={(checked) => setConfirmed(checked === true)}
             />
-            Ich habe Account-ID und Recovery-Key sicher gespeichert.
-          </label>
-          <button
-            onClick={handleConfirm}
-            disabled={!confirmed || signingIn}
-            className="rounded bg-slate-900 px-4 py-2 text-white disabled:opacity-50"
-          >
+            <Label htmlFor="confirm-saved" className="text-sm font-normal">
+              Ich habe Account-ID und Recovery-Key sicher gespeichert.
+            </Label>
+          </div>
+          <Button onClick={handleConfirm} disabled={!confirmed || signingIn}>
             {signingIn ? "Wird angemeldet…" : "Weiter zum Profil"}
-          </button>
-          {signInError && <p className="text-sm text-red-600">{signInError}</p>}
+          </Button>
+          {signInError && <p className="text-sm text-destructive">{signInError}</p>}
         </>
       )}
     </main>
