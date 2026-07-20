@@ -19,10 +19,18 @@ const OVERPASS_USER_AGENT = "lunch-match-app/0.1 (student project, non-commercia
 
 // Unlike lib/geocoding.ts (Nominatim, which mandates a 1 req/s throttle),
 // this client deliberately has no rate limiting. Overpass is only called
-// once per discrete user action (a "find a match" page load), not per
-// keystroke, so there is no risk of hammering the API the way an
-// autocomplete-style caller could. Do not add a throttle here without
-// re-checking that assumption.
+// once per discrete user action, not per keystroke — two things make that
+// true on the caller side (app/api/match/meeting-points/route.ts, called
+// from app/match-finden/page.tsx):
+//   1. The free-text filters that feed a request (Branche, Position,
+//      Suchradius) are debounced client-side before they reach any query
+//      key, so a burst of keystrokes collapses into one request.
+//   2. Meeting points are fetched via their own route/query key, separate
+//      from the people-candidates query, so changing a people-only filter
+//      (which doesn't affect meeting points at all) never re-triggers this
+//      call.
+// Do not add a throttle here without re-checking that both of those still
+// hold.
 
 export async function findMeetingPoints(
   origin: Coordinates,

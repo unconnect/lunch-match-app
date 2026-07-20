@@ -11,9 +11,17 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/componen
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { karrierelevelValues } from "@/lib/validation/profile";
+import { useDebouncedValue } from "@/lib/hooks/useDebouncedValue";
 import { RequestDialog } from "./RequestDialog";
 
 const MapView = dynamic(() => import("./MapView").then((mod) => mod.MapView), { ssr: false });
+
+// How long to wait, after the user stops typing in a free-text filter,
+// before that value feeds a query key and fires a request. Keeps typing
+// itself instant (inputs stay bound to the raw state) while collapsing a
+// burst of keystrokes into a single network request. See the comment atop
+// lib/meetingPoints.ts for why this matters for Overpass specifically.
+const FILTER_DEBOUNCE_MS = 350;
 
 interface CandidatePerson {
   id: string;
@@ -38,6 +46,10 @@ interface CandidatesResponse {
   radiusMeters: number;
   origin: { lat: number; lng: number };
   people: CandidatePerson[];
+}
+
+interface MeetingPointsResponse {
+  radiusMeters: number;
   meetingPoints: MeetingPoint[];
 }
 
@@ -55,6 +67,17 @@ const karrierelevelLabels: Record<(typeof karrierelevelValues)[number], string> 
 const selectClassName =
   "h-10 rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
+// A 4xx response (e.g. "Profil unvollständig: Standort fehlt." for a
+// brand-new account) will never succeed by retrying, so don't: retrying
+// just delays the error UI for several seconds and, observed during manual
+// verification, can leave the query stuck in the transient gap where
+// isLoading is false but neither data nor error is set yet, rendering
+// nothing at all. Only retry on retryable (network/5xx) failures.
+function retryUnlessClientError(failureCount: number, err: ApiError) {
+  if (err.status && err.status >= 400 && err.status < 500) return false;
+  return failureCount < 3;
+}
+
 export default function MatchFindenPage() {
   const router = useRouter();
   const [branche, setBranche] = useState("");
@@ -65,41 +88,71 @@ export default function MatchFindenPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [requestTarget, setRequestTarget] = useState<CandidatePerson | null>(null);
 
-  const searchParams = new URLSearchParams();
-  if (branche) searchParams.set("branche", branche);
-  if (position) searchParams.set("position", position);
-  if (karrierelevel) searchParams.set("karrierelevel", karrierelevel);
-  if (kueche) searchParams.set("kueche", kueche);
-  if (radiusOverride) searchParams.set("radius", radiusOverride);
+  // Only these debounced values feed query keys — the inputs themselves
+  // stay bound to the raw (non-debounced) state above, so typing remains
+  // instant.
+  const debouncedBranche = useDebouncedValue(branche, FILTER_DEBOUNCE_MS);
+  const debouncedPosition = useDebouncedValue(position, FILTER_DEBOUNCE_MS);
+  const debouncedRadiusOverride = useDebouncedValue(radiusOverride, FILTER_DEBOUNCE_MS);
 
-  const { data, isLoading, error } = useQuery<CandidatesResponse, ApiError>({
-    queryKey: ["match-candidates", branche, position, karrierelevel, kueche, radiusOverride],
+  // People and meeting points are fetched as two separate queries against
+  // two separate routes. Meeting points depend only on origin, radius, and
+  // the cuisine filter — never on the people filters (Branche, Position,
+  // Karrierelevel) — so this split means narrowing by Karrierelevel, for
+  // instance, never re-triggers the (comparatively slow, rate-limited)
+  // Overpass call behind the meeting-points route.
+  const {
+    data: candidatesData,
+    isLoading: candidatesLoading,
+    error: candidatesError,
+  } = useQuery<CandidatesResponse, ApiError>({
+    queryKey: ["match-candidates", debouncedBranche, debouncedPosition, karrierelevel, debouncedRadiusOverride],
     queryFn: async () => {
+      const searchParams = new URLSearchParams();
+      if (debouncedBranche) searchParams.set("branche", debouncedBranche);
+      if (debouncedPosition) searchParams.set("position", debouncedPosition);
+      if (karrierelevel) searchParams.set("karrierelevel", karrierelevel);
+      if (debouncedRadiusOverride) searchParams.set("radius", debouncedRadiusOverride);
+
       const res = await fetch(`/api/match/candidates?${searchParams.toString()}`);
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        const message =
-          typeof body.error === "string" ? body.error : "Suche fehlgeschlagen.";
+        const message = typeof body.error === "string" ? body.error : "Suche fehlgeschlagen.";
         const err: ApiError = new Error(message);
         err.status = res.status;
         throw err;
       }
       return res.json();
     },
-    // A 4xx response (e.g. "Profil unvollständig: Standort fehlt." for a
-    // brand-new account) will never succeed by retrying, so don't: retrying
-    // just delays the error UI for several seconds and, observed during
-    // manual verification, can leave the query stuck in the transient gap
-    // where isLoading is false but neither data nor error is set yet,
-    // rendering nothing at all. Only retry on retryable (network/5xx)
-    // failures.
-    retry: (failureCount, err) => {
-      if (err.status && err.status >= 400 && err.status < 500) return false;
-      return failureCount < 3;
-    },
+    retry: retryUnlessClientError,
   });
 
-  const people = useMemo(() => data?.people ?? [], [data]);
+  const {
+    data: meetingPointsData,
+    isLoading: meetingPointsLoading,
+    error: meetingPointsError,
+  } = useQuery<MeetingPointsResponse, ApiError>({
+    queryKey: ["match-meeting-points", kueche, debouncedRadiusOverride],
+    queryFn: async () => {
+      const searchParams = new URLSearchParams();
+      if (kueche) searchParams.set("kueche", kueche);
+      if (debouncedRadiusOverride) searchParams.set("radius", debouncedRadiusOverride);
+
+      const res = await fetch(`/api/match/meeting-points?${searchParams.toString()}`);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        const message = typeof body.error === "string" ? body.error : "Treffpunkte konnten nicht geladen werden.";
+        const err: ApiError = new Error(message);
+        err.status = res.status;
+        throw err;
+      }
+      return res.json();
+    },
+    retry: retryUnlessClientError,
+  });
+
+  const people = useMemo(() => candidatesData?.people ?? [], [candidatesData]);
+  const meetingPoints = useMemo(() => meetingPointsData?.meetingPoints ?? [], [meetingPointsData]);
 
   const matchMeMutation = useMutation({
     mutationFn: async () => {
@@ -120,17 +173,22 @@ export default function MatchFindenPage() {
     onSuccess: (created) => router.push(`/nachrichten/${created.id}`),
   });
 
-  if (isLoading) return <main className="p-6">Lädt…</main>;
+  // The people-candidates query is the one that gates the page: it carries
+  // the origin the map centers on and the "Standort fehlt" 400 that a
+  // brand-new account hits. Meeting points load independently and degrade
+  // gracefully (see below) so a flaky Overpass response never blocks the
+  // core people/matching flow.
+  if (candidatesLoading) return <main className="p-6">Lädt…</main>;
 
-  if (error) {
+  if (candidatesError) {
     // A brand-new account has no lat/lng yet, so the API responds 400 with
     // "Profil unvollständig: Standort fehlt." — that is the exact state a
     // just-created account is in, so point the user at the fix instead of
     // just showing the raw error text.
-    const isMissingLocation = error.status === 400;
+    const isMissingLocation = candidatesError.status === 400;
     return (
       <main className="mx-auto flex max-w-md flex-col items-center gap-4 p-6 text-center">
-        <p className="text-destructive">{error.message}</p>
+        <p className="text-destructive">{candidatesError.message}</p>
         {isMissingLocation && (
           <Button asChild>
             <Link href="/profil">Zum Profil</Link>
@@ -144,7 +202,7 @@ export default function MatchFindenPage() {
   // can be momentarily false without data or error being set yet (e.g. in
   // the gap between retry attempts). Never render a blank page for that —
   // fall back to the same loading message rather than null.
-  if (!data) return <main className="p-6">Lädt…</main>;
+  if (!candidatesData) return <main className="p-6">Lädt…</main>;
 
   return (
     <main className="grid grid-cols-1 gap-6 p-6 md:grid-cols-[240px_1fr]">
@@ -202,9 +260,10 @@ export default function MatchFindenPage() {
           <Input
             id="radius-filter"
             type="number"
+            min="0"
             value={radiusOverride}
             onChange={(event) => setRadiusOverride(event.target.value)}
-            placeholder={`Standard: ${Math.round(data.radiusMeters)} m`}
+            placeholder={`Standard: ${Math.round(candidatesData.radiusMeters)} m`}
           />
         </div>
         <Button onClick={() => matchMeMutation.mutate()} disabled={people.length === 0 || matchMeMutation.isPending}>
@@ -218,12 +277,18 @@ export default function MatchFindenPage() {
       <section className="flex flex-col gap-4">
         <h1 className="text-2xl font-semibold">Match finden</h1>
         <MapView
-          origin={data.origin}
+          origin={candidatesData.origin}
           people={people}
-          meetingPoints={data.meetingPoints}
+          meetingPoints={meetingPoints}
           selectedId={selectedId}
           onSelectPerson={setSelectedId}
         />
+        {meetingPointsLoading && <p className="text-xs text-muted-foreground">Lädt Treffpunkte…</p>}
+        {meetingPointsError && (
+          <p className="text-xs text-muted-foreground">
+            Treffpunkte konnten nicht geladen werden. Personen in deiner Nähe sind trotzdem sichtbar.
+          </p>
+        )}
         <div className="flex flex-col gap-3">
           {people.length === 0 && <p className="text-muted-foreground">Keine Personen im Suchradius gefunden.</p>}
           {people.map((person) => (
