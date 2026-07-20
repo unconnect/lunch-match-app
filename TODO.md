@@ -56,8 +56,7 @@ Tracked in `docs/superpowers/plans/2026-07-16-lunch-match-v1.md`.
 - [x] Tasks 13–14 — landing page, account recovery page
 - [x] Task 15 — design system, UI primitives, navigation
 - [x] Tasks 16–17 — profile schema, profile API, profile page
-- [ ] **P1** Task 18 — match candidates API (`GET /api/match/candidates`)
-- [ ] **P1** Task 19 — Match-finden page: map, result list, filters, Match-me
+- [x] Tasks 18–19 — match candidates API, Match-finden page (map, list, filters, Match-me)
 - [ ] **P1** Task 20 — match request creation + list API
 - [ ] **P1** Task 21 — match request detail + messages API
 - [ ] **P1** Task 22 — Nachrichten overview page
@@ -143,6 +142,17 @@ Tracked in `docs/superpowers/plans/2026-07-16-lunch-match-v1.md`.
 - [ ] **P3** `--accent` has no consuming variant in `button.tsx` / `badge.tsx`, so
   `bg-accent` currently compiles to nothing. Either add the variant or drop the
   token.
+
+- [ ] **P3** `MAX_RADIUS_METERS = 15000` is declared separately in both
+  `app/api/match/candidates/route.ts` and `app/api/match/meeting-points/route.ts`.
+  Two copies of the same limit will drift. Move it next to the other radius
+  constants in `lib/searchRadius.ts`.
+
+- [ ] **P3** `app/match-finden/page.tsx` mixes query logic, five filter controls,
+  list rendering and dialog composition in one client component. It still reads
+  fine, but it is the template the Nachrichten screens are being built against —
+  extracting a `useMatchCandidates` hook and a `FilterPanel` would stop the shape
+  being copied further.
 
 ---
 
