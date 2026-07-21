@@ -281,6 +281,53 @@ Refinements to the matching and meeting-point flow, beyond what v1 shipped.
 
 ---
 
+## Internationalisation (i18n)
+
+The app is currently German-only: every user-facing string is a hardcoded German
+literal, and the route paths are German too (`/match-finden`,
+`/konto-wiederherstellen`, `/nachrichten`, `/profil`). Make the app
+translatable and stop baking the language into the URLs.
+
+- [ ] **P2** **Extract all UI strings into a translation layer.**
+  Today German copy is inlined across every page and component (pages under
+  `app/`, the `RequestDialog`, `Navigation`, map popups/labels in `MapView.tsx`,
+  server-side error messages returned from the `app/api/**` routes, and the seed
+  script's console output). Move them into message catalogues keyed by locale so
+  nothing user-facing is a bare literal.
+  - Pick a library — `next-intl` is the natural fit for the App Router (locale
+    segment + `useTranslations` on the client and `getTranslations` on the
+    server, so the API routes can localise their error strings too). Decide
+    during design; `next-i18next` and the App Router's built-in patterns are the
+    alternatives.
+  - Keep German (`de`) as the default/source locale so nothing regresses; add
+    English (`en`) as the second locale to prove the plumbing end-to-end.
+  - Don't forget the non-obvious surfaces: `<html lang>`, `metadata`/`<title>`,
+    date/number/relative-time formatting (ties into the "relative dates on cards"
+    item under *Feature enhancements* — use the same locale-aware formatter),
+    zod validation messages, and enum labels (`karrierelevelLabels`, status
+    labels) that are currently German maps.
+  - A language switch in the UI (or at least honouring the `Accept-Language`
+    header) so a user can actually reach the English version.
+
+- [ ] **P2** **Make the routes English or locale-aware, not German-hardcoded.**
+  The paths themselves are German. Two viable shapes — decide during design:
+  - **Localised pathnames** (preferred if we do i18n properly): a `[locale]`
+    segment with per-locale path names, e.g. `next-intl`'s `pathnames` mapping
+    (`/de/match-finden` ↔ `/en/find-match`, `/de/nachrichten` ↔ `/en/messages`,
+    `/de/profil` ↔ `/en/profile`, `/de/konto-wiederherstellen` ↔
+    `/en/recover-account`). The URL then follows the active locale.
+  - **Plain English rename** (simpler, if we don't want localised URLs):
+    `/match-finden` → `/find-match`, `/nachrichten` → `/messages`, `/profil` →
+    `/profile`, `/konto-wiederherstellen` → `/recover-account`. API routes under
+    `/api/match/**` are already English and can stay.
+  - Whichever we pick, this touches every hardcoded path: `middleware.ts`'s
+    `matcher`, the `<Link href>`s and `router.push`/redirects across the pages
+    (Navigation, landing page, match-finden, nachrichten), and any NextAuth
+    redirect/callback URLs. Add redirects from the old German paths so existing
+    links/bookmarks don't 404.
+
+---
+
 ## v2 — from the thesis, out of scope for v1
 
 Described in `docs/superpowers/specs/2026-07-15-lunch-match-app-design.md`.
