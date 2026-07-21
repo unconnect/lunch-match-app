@@ -57,10 +57,17 @@ Tracked in `docs/superpowers/plans/2026-07-16-lunch-match-v1.md`.
 - [x] Task 15 — design system, UI primitives, navigation
 - [x] Tasks 16–17 — profile schema, profile API, profile page
 - [x] Tasks 18–19 — match candidates API, Match-finden page (map, list, filters, Match-me)
-- [ ] **P1** Task 20 — match request creation + list API
-- [ ] **P1** Task 21 — match request detail + messages API
-- [ ] **P1** Task 22 — Nachrichten overview page
-- [ ] **P1** Task 23 — Nachrichten detail page (meeting point map, chat, accept/decline)
+- [x] Tasks 20–21 — match request creation/list API, detail + messages API
+      (plus role-based status authorization: recipient accepts/declines, sender
+      withdraws — new `WITHDRAWN` status; GET returns `canRespond`/`canWithdraw`)
+- [ ] **P1** Task 22 — Nachrichten overview page. **Must** render a German label
+      for the new `WITHDRAWN` status (e.g. "Zurückgezogen") alongside
+      Offen/Zugesagt/Abgesagt, and its status filter should include it.
+- [ ] **P1** Task 23 — Nachrichten detail page (meeting point map, chat,
+      accept/decline). **Must** show a "Zurückziehen" action to the sender when
+      `canWithdraw` is true, in addition to the recipient's accept/decline gated
+      on `canRespond`. The brief predates the WITHDRAWN status, so this is an
+      addition beyond the brief's literal code.
 - [ ] **P1** Task 24 — seed script + full two-account manual walkthrough
 - [ ] **P1** Final whole-branch code review
 
@@ -153,6 +160,11 @@ Tracked in `docs/superpowers/plans/2026-07-16-lunch-match-v1.md`.
   fine, but it is the template the Nachrichten screens are being built against —
   extracting a `useMatchCandidates` hook and a `FilterPanel` would stop the shape
   being copied further.
+
+- [ ] **P3** `POST /api/match-requests` allows a sender to create unlimited
+  duplicate OPEN requests to the same person (seen live: pressing "Match me"
+  twice created two identical requests). Consider rejecting a new request when an
+  OPEN one already exists between the same pair, or de-duplicating in the list.
 
 ---
 
