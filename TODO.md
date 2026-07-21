@@ -60,14 +60,8 @@ Tracked in `docs/superpowers/plans/2026-07-16-lunch-match-v1.md`.
 - [x] Tasks 20–21 — match request creation/list API, detail + messages API
       (plus role-based status authorization: recipient accepts/declines, sender
       withdraws — new `WITHDRAWN` status; GET returns `canRespond`/`canWithdraw`)
-- [ ] **P1** Task 22 — Nachrichten overview page. **Must** render a German label
-      for the new `WITHDRAWN` status (e.g. "Zurückgezogen") alongside
-      Offen/Zugesagt/Abgesagt, and its status filter should include it.
-- [ ] **P1** Task 23 — Nachrichten detail page (meeting point map, chat,
-      accept/decline). **Must** show a "Zurückziehen" action to the sender when
-      `canWithdraw` is true, in addition to the recipient's accept/decline gated
-      on `canRespond`. The brief predates the WITHDRAWN status, so this is an
-      addition beyond the brief's literal code.
+- [x] Tasks 22–23 — Nachrichten overview + detail pages (WITHDRAWN label & filter,
+      sender withdraw, recipient accept/decline, chat polling, meeting-point map)
 - [ ] **P1** Task 24 — seed script + full two-account manual walkthrough
 - [ ] **P1** Final whole-branch code review
 
@@ -111,6 +105,13 @@ Tracked in `docs/superpowers/plans/2026-07-16-lunch-match-v1.md`.
 ---
 
 ## Known issues
+
+- [ ] **P2** Pages have no `isError` branch, so a failed fetch leaves them stuck.
+  `app/nachrichten/[id]/page.tsx` shows "Lädt…" forever if `GET [id]` fails;
+  `app/nachrichten/page.tsx` silently shows nothing (its `data?.length === 0`
+  empty-state never triggers when `data` is `undefined`). Same shape as the
+  profile and match-finden pages. Inherited from the plan's sample code — add an
+  `isError` state to each TanStack Query consumer with a German error message.
 
 - [ ] **P2** `app/profil/page.tsx` renders `[object Object]` on a 400 response.
   `app/api/profile/route.ts:40` returns `parsed.error.flatten()` (an object) and
