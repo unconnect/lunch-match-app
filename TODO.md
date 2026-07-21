@@ -64,7 +64,9 @@ Tracked in `docs/superpowers/plans/2026-07-16-lunch-match-v1.md`.
       sender withdraw, recipient accept/decline, chat polling, meeting-point map)
 - [x] Task 24 — seed script + full two-account end-to-end walkthrough (9/9 scripted
       checks: seeded A finds B, request → chat → accept → geocoded meeting point)
-- [ ] **P1** Final whole-branch code review
+- [x] Final whole-branch code review — 1 blocker + 2 should-fix found and fixed
+      (location-precision now enforced server-side; match-request state guarded
+      server-side; `?status` validated). Verdict: Ready with follow-ups (below).
 
 ---
 
@@ -151,6 +153,26 @@ Tracked in `docs/superpowers/plans/2026-07-16-lunch-match-v1.md`.
 - [ ] **P3** `--accent` has no consuming variant in `button.tsx` / `badge.tsx`, so
   `bg-accent` currently compiles to nothing. Either add the variant or drop the
   token.
+
+- [ ] **P3** `MatchStatus` / `MatchType` string-union literals are re-declared
+  inline in `nachrichten/page.tsx`, `nachrichten/[id]/page.tsx` and the match
+  APIs, alongside the Prisma enum — four copies that can (and once did) drift.
+  Derive them from one shared const or `$Enums` from `@prisma/client`.
+
+- [ ] **P3** Leaflet's default marker icons are hard-linked to `unpkg.com` in
+  `MapView.tsx` and `SingleMarkerMap.tsx`. Participant/origin/meeting-point
+  markers use `divIcon` and are unaffected, but the `SingleMarkerMap` default
+  marker and any `L.Icon.Default` fallback break offline / if unpkg is blocked.
+  Self-host the three PNGs from `leaflet/dist/images`.
+
+- [ ] **P3** Spec vs. model: the match list is described as showing
+  "sofern freigegeben Branche/Position/Karrierelevel", but only `brancheVisible`
+  exists — Position and Karrierelevel are always shared. Either add visibility
+  flags for those two or accept and document that only Branche is gated.
+
+- [ ] **P3** `karrierelevelParam as Karrierelevel` in the candidates route is an
+  unvalidated cast (harmless — a bogus value just yields no matches). Fold into
+  the same enum-guard cleanup as the `?status` validation for symmetry.
 
 - [ ] **P3** `MAX_RADIUS_METERS = 15000` is declared separately in both
   `app/api/match/candidates/route.ts` and `app/api/match/meeting-points/route.ts`.
