@@ -25,6 +25,27 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Person nicht gefunden." }, { status: 404 });
   }
 
+  // Don't allow a second active request to someone you already have an OPEN or
+  // ACCEPTED request with (in either direction). Backs the "Bereits angefragt"
+  // state in the match UI and closes the duplicate-request path. Return the
+  // existing id so the client can jump to the conversation instead.
+  const existing = await prisma.matchRequest.findFirst({
+    where: {
+      status: { in: ["OPEN", "ACCEPTED"] },
+      OR: [
+        { fromUserId: session.user.id, toUserId: parsed.data.toUserId },
+        { fromUserId: parsed.data.toUserId, toUserId: session.user.id },
+      ],
+    },
+    select: { id: true },
+  });
+  if (existing) {
+    return NextResponse.json(
+      { error: "Mit dieser Person besteht bereits eine offene Anfrage.", existingRequestId: existing.id },
+      { status: 409 }
+    );
+  }
+
   const matchRequest = await prisma.matchRequest.create({
     data: {
       fromUserId: session.user.id,

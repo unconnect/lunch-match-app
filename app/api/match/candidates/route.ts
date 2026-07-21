@@ -92,6 +92,28 @@ export async function GET(request: Request) {
   // another user who chose POSTAL_CODE or CITY.
   const precisionById = new Map(otherUsers.map((u) => [u.id, u.locationPrecision]));
 
+  // A candidate the current user already has an *active* (OPEN or ACCEPTED)
+  // request with — in either direction — must not be re-requestable from the
+  // match screen. Look those up once and map counterpart -> request id, so the
+  // UI can disable re-requesting and link straight to the existing conversation.
+  // Declined/withdrawn requests are closed and deliberately don't count, so a
+  // person can be asked again after a closed request.
+  const activeRequests = await prisma.matchRequest.findMany({
+    where: {
+      OR: [{ fromUserId: currentUser.id }, { toUserId: currentUser.id }],
+      status: { in: ["OPEN", "ACCEPTED"] },
+    },
+    select: { id: true, fromUserId: true, toUserId: true },
+    orderBy: { createdAt: "desc" },
+  });
+  const activeRequestByCounterpart = new Map<string, string>();
+  for (const r of activeRequests) {
+    const counterpart = r.fromUserId === currentUser.id ? r.toUserId : r.fromUserId;
+    if (!activeRequestByCounterpart.has(counterpart)) {
+      activeRequestByCounterpart.set(counterpart, r.id);
+    }
+  }
+
   const candidates: Candidate[] = otherUsers.map((u) => ({
     id: u.id,
     alias: u.alias,
@@ -115,6 +137,7 @@ export async function GET(request: Request) {
       karrierelevel: c.karrierelevel,
       lat: shown.lat,
       lng: shown.lng,
+      activeRequestId: activeRequestByCounterpart.get(c.id) ?? null,
     };
   });
 

@@ -40,14 +40,28 @@ function squareIcon(size: number, className: string) {
   });
 }
 
-function participantIcon(selected: boolean) {
+// Participants use the warm --primary marker. A participant the current user
+// has already requested is instead drawn in --accent (green) with a check
+// glyph, so "already asked" reads at a glance on the map — distinct from both
+// a still-requestable participant (amber) and a meeting point (small, muted).
+function participantIcon(selected: boolean, alreadyRequested: boolean) {
   const size = selected ? PARTICIPANT_SIZE_SELECTED : PARTICIPANT_SIZE;
-  return squareIcon(
-    size,
-    `rounded-full border-2 shadow-md ${
-      selected ? "border-foreground bg-primary ring-4 ring-primary/30" : "border-primary-foreground bg-primary"
-    }`
-  );
+  const fill = alreadyRequested ? "bg-accent" : "bg-primary";
+  const ring = selected ? (alreadyRequested ? "ring-4 ring-accent/30" : "ring-4 ring-primary/30") : "";
+  const border = selected
+    ? "border-foreground"
+    : alreadyRequested
+      ? "border-accent-foreground"
+      : "border-primary-foreground";
+  const check = alreadyRequested
+    ? '<span class="text-[11px] font-bold leading-none text-accent-foreground">✓</span>'
+    : "";
+  return L.divIcon({
+    className: "",
+    html: `<div class="flex h-full w-full items-center justify-center rounded-full border-2 shadow-md ${fill} ${border} ${ring}">${check}</div>`,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+  });
 }
 
 const meetingPointIcon = squareIcon(MEETING_POINT_SIZE, "rounded-full border border-background bg-muted-foreground/70");
@@ -65,6 +79,7 @@ export interface MapPerson {
   alias: string | null;
   lat: number;
   lng: number;
+  alreadyRequested?: boolean;
 }
 
 export interface MapMeetingPoint {
@@ -119,10 +134,13 @@ export function MapView({ origin, people, meetingPoints, selectedId, onSelectPer
           <Marker
             key={person.id}
             position={[person.lat, person.lng]}
-            icon={participantIcon(person.id === selectedId)}
+            icon={participantIcon(person.id === selectedId, person.alreadyRequested ?? false)}
             eventHandlers={{ click: () => onSelectPerson(person.id) }}
           >
-            <Popup>{person.alias ?? "Teilnehmende Person"}</Popup>
+            <Popup>
+              {person.alias ?? "Teilnehmende Person"}
+              {person.alreadyRequested ? " · bereits angefragt" : ""}
+            </Popup>
           </Marker>
         ))}
       </MapContainer>

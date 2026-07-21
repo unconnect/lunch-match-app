@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
+import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -33,6 +34,10 @@ interface CandidatePerson {
   karrierelevel: (typeof karrierelevelValues)[number] | null;
   lat: number;
   lng: number;
+  // Id of an existing active (OPEN/ACCEPTED) request with this person, in
+  // either direction — null if none. Non-null means "already requested": not
+  // re-requestable, links to the existing conversation instead.
+  activeRequestId: string | null;
 }
 
 interface MeetingPoint {
@@ -154,10 +159,22 @@ export default function MatchFindenPage() {
   const people = useMemo(() => candidatesData?.people ?? [], [candidatesData]);
   const meetingPoints = useMemo(() => meetingPointsData?.meetingPoints ?? [], [meetingPointsData]);
 
+  // People who haven't already been requested — the pool "Match me" draws from,
+  // and what gates its enabled state. Someone already asked must not receive a
+  // second automatic request.
+  const requestablePeople = useMemo(() => people.filter((p) => !p.activeRequestId), [people]);
+
+  // Markers carry a plain alreadyRequested flag so the map can style them
+  // distinctly without knowing about request ids.
+  const mapPeople = useMemo(
+    () => people.map((p) => ({ id: p.id, alias: p.alias, lat: p.lat, lng: p.lng, alreadyRequested: !!p.activeRequestId })),
+    [people]
+  );
+
   const matchMeMutation = useMutation({
     mutationFn: async () => {
-      if (people.length === 0) throw new Error("Keine Personen im Suchradius gefunden.");
-      const random = people[Math.floor(Math.random() * people.length)];
+      if (requestablePeople.length === 0) throw new Error("Keine anfragbaren Personen im Suchradius gefunden.");
+      const random = requestablePeople[Math.floor(Math.random() * requestablePeople.length)];
       const res = await fetch("/api/match-requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -266,7 +283,10 @@ export default function MatchFindenPage() {
             placeholder={`Standard: ${Math.round(candidatesData.radiusMeters)} m`}
           />
         </div>
-        <Button onClick={() => matchMeMutation.mutate()} disabled={people.length === 0 || matchMeMutation.isPending}>
+        <Button
+          onClick={() => matchMeMutation.mutate()}
+          disabled={requestablePeople.length === 0 || matchMeMutation.isPending}
+        >
           Match me
         </Button>
         {matchMeMutation.isError && (
@@ -278,7 +298,7 @@ export default function MatchFindenPage() {
         <h1 className="text-2xl font-semibold">Match finden</h1>
         <MapView
           origin={candidatesData.origin}
-          people={people}
+          people={mapPeople}
           meetingPoints={meetingPoints}
           selectedId={selectedId}
           onSelectPerson={setSelectedId}
@@ -306,9 +326,20 @@ export default function MatchFindenPage() {
                 {person.position && ` · ${person.position}`}
               </CardContent>
               <CardFooter>
-                <Button size="sm" onClick={() => setRequestTarget(person)}>
-                  Anfragen
-                </Button>
+                {person.activeRequestId ? (
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" variant="secondary" disabled>
+                      <Check className="mr-1 h-4 w-4" /> Bereits angefragt
+                    </Button>
+                    <Button size="sm" variant="outline" asChild>
+                      <Link href={`/nachrichten/${person.activeRequestId}`}>Nachricht öffnen</Link>
+                    </Button>
+                  </div>
+                ) : (
+                  <Button size="sm" onClick={() => setRequestTarget(person)}>
+                    Anfragen
+                  </Button>
+                )}
               </CardFooter>
             </Card>
           ))}
