@@ -197,6 +197,22 @@ implemented, reviewed, and merged into `main`. Nothing here is outstanding.
 
 Refinements to the matching and meeting-point flow, beyond what v1 shipped.
 
+- [ ] **P2** **Show step-radius circles on the "Match finden" map.**
+  Draw the current user's search radius as a light, semi-transparent circle
+  around their own marker (radius = `schritteziel × 0.73 m`, same maths as
+  `lib/searchRadius.ts` / the candidates API — it already returns `radiusMeters`,
+  so reuse it rather than recomputing). Leaflet's `<Circle>` (react-leaflet)
+  centred on the origin does this directly. When a user in the result list / on
+  the map is selected (clicked), also draw *their* step radius as a second circle
+  around their marker, using their step goal.
+  - This needs each candidate's radius (or step goal) from the candidates API,
+    which it does not currently return — add it. Respect `locationPrecision`:
+    the circle is centred on the already-coarsened coordinate the API returns, so
+    it inherits the same privacy behaviour (no extra leak).
+  - Keep it subtle so it doesn't drown the markers (low opacity fill, thin
+    stroke, theme colours — own radius vs. selected radius visually distinct).
+  - Foundational for the overlap feature below and its follow-up.
+
 - [ ] **P2** **Suggest meeting points in the overlap of both people's radii.**
   Today the "Treffpunkt vorschlagen" field is a free-text box that geocodes
   whatever the user types. Instead, offer concrete suggestions that are actually
@@ -218,6 +234,14 @@ Refinements to the matching and meeting-point flow, beyond what v1 shipped.
   - Server-side, this needs the counterpart's location and step goal, which the
     match-request detail API does not currently expose — extend it carefully so it
     still doesn't leak more than `locationPrecision` allows.
+
+- [ ] **P3** **Highlight meeting points inside the shown radius intersection.**
+  Follow-up to the two items above — depends on both "Show step-radius circles on
+  the map" and "Suggest meeting points in the overlap". Once both radii are drawn
+  on the meeting-point map, visually highlight every candidate meeting point that
+  falls inside the lens-shaped intersection of the two circles (distinct marker
+  colour/emphasis from points outside it), so the reachable-for-both options are
+  obvious at a glance and directly pickable from the map.
 
 - [ ] **P2** **Make meeting points negotiable (propose → accept/reject → counter).**
   A proposed meeting point should be acceptable or rejectable by the other person,
