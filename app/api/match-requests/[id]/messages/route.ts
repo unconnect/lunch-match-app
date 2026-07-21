@@ -37,6 +37,14 @@ export async function POST(request: Request, { params }: { params: { id: string 
     return NextResponse.json({ error: "Nicht gefunden" }, { status: 404 });
   }
 
+  // A declined or withdrawn request is closed — no further messages.
+  if (matchRequest.status === "DECLINED" || matchRequest.status === "WITHDRAWN") {
+    return NextResponse.json(
+      { error: "Diese Anfrage ist abgeschlossen." },
+      { status: 409 }
+    );
+  }
+
   const body = await request.json();
   const parsed = sendMessageSchema.safeParse(body);
   if (!parsed.success) {

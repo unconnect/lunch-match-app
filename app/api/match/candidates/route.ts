@@ -5,6 +5,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { calculateSearchRadiusMeters, metersToSteps } from "@/lib/searchRadius";
 import { filterCandidates, type Candidate, type MatchFilters } from "@/lib/matchFilters";
+import { coarsenCoordinates } from "@/lib/locationPrivacy";
 
 // Meeting points (Overpass) now live behind their own route —
 // app/api/match/meeting-points/route.ts — so that changing a people-only
@@ -76,12 +77,20 @@ export async function GET(request: Request) {
       alias: true,
       lat: true,
       lng: true,
+      locationPrecision: true,
       branche: true,
       brancheVisible: true,
       position: true,
       karrierelevel: true,
     },
   });
+
+  // Each user's chosen locationPrecision governs how precise a coordinate we
+  // may expose to others. We keep the exact point for distance/radius maths
+  // (so matching quality is unaffected by a privacy choice), then coarsen only
+  // the coordinate that leaves the server — the exact point never reaches
+  // another user who chose POSTAL_CODE or CITY.
+  const precisionById = new Map(otherUsers.map((u) => [u.id, u.locationPrecision]));
 
   const candidates: Candidate[] = otherUsers.map((u) => ({
     id: u.id,
@@ -94,17 +103,20 @@ export async function GET(request: Request) {
     karrierelevel: u.karrierelevel,
   }));
 
-  const people = filterCandidates(candidates, origin, radiusMeters, filters).map((c) => ({
-    id: c.id,
-    alias: c.alias,
-    distanceMeters: c.distanceMeters,
-    distanceSteps: metersToSteps(c.distanceMeters),
-    branche: c.brancheVisible ? c.branche : null,
-    position: c.position,
-    karrierelevel: c.karrierelevel,
-    lat: c.lat,
-    lng: c.lng,
-  }));
+  const people = filterCandidates(candidates, origin, radiusMeters, filters).map((c) => {
+    const shown = coarsenCoordinates({ lat: c.lat, lng: c.lng }, precisionById.get(c.id) ?? null);
+    return {
+      id: c.id,
+      alias: c.alias,
+      distanceMeters: c.distanceMeters,
+      distanceSteps: metersToSteps(c.distanceMeters),
+      branche: c.brancheVisible ? c.branche : null,
+      position: c.position,
+      karrierelevel: c.karrierelevel,
+      lat: shown.lat,
+      lng: shown.lng,
+    };
+  });
 
   return NextResponse.json({ radiusMeters, origin, people });
 }

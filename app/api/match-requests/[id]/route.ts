@@ -50,10 +50,31 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  // Enforce who may set which status: only the recipient can accept/decline,
-  // only the sender can withdraw. This prevents a sender from forging the
-  // recipient's acceptance.
+  // Terminal states: once a request is declined or withdrawn, it is closed —
+  // no status change, meeting-point proposal, or new message. The client also
+  // enforces this ("isClosed"), but the server is the authority.
+  const isClosed = matchRequest.status === "DECLINED" || matchRequest.status === "WITHDRAWN";
+  if (isClosed) {
+    return NextResponse.json(
+      { error: "Diese Anfrage ist abgeschlossen und kann nicht mehr geändert werden." },
+      { status: 409 }
+    );
+  }
+
   if (parsed.data.status) {
+    // A status change is only valid from OPEN (accept/decline/withdraw an
+    // open request). This prevents flipping an already-accepted request, or
+    // reviving a closed one, via a crafted request or a stale client tab.
+    if (matchRequest.status !== "OPEN") {
+      return NextResponse.json(
+        { error: "Der Status dieser Anfrage kann nicht mehr geändert werden." },
+        { status: 409 }
+      );
+    }
+
+    // Enforce who may set which status: only the recipient can accept/decline,
+    // only the sender can withdraw. This prevents a sender from forging the
+    // recipient's acceptance.
     const isRecipient = matchRequest.toUserId === session.user.id;
     const isSender = matchRequest.fromUserId === session.user.id;
     const isResponse = parsed.data.status === "ACCEPTED" || parsed.data.status === "DECLINED";

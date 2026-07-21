@@ -46,7 +46,14 @@ export async function GET(request: Request) {
   }
 
   const url = new URL(request.url);
-  const statusParam = url.searchParams.get("status") as "OPEN" | "ACCEPTED" | "DECLINED" | null;
+  const rawStatus = url.searchParams.get("status");
+  // Validate the client-supplied status against the enum before it reaches
+  // Prisma: an unknown value would otherwise throw and surface as a 500.
+  const allowedStatuses = ["OPEN", "ACCEPTED", "DECLINED", "WITHDRAWN"] as const;
+  if (rawStatus !== null && !allowedStatuses.includes(rawStatus as (typeof allowedStatuses)[number])) {
+    return NextResponse.json({ error: "Ungültiger Status." }, { status: 400 });
+  }
+  const statusParam = rawStatus as (typeof allowedStatuses)[number] | null;
 
   const matchRequests = await prisma.matchRequest.findMany({
     where: {
