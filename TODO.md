@@ -189,6 +189,61 @@ Tracked in `docs/superpowers/plans/2026-07-16-lunch-match-v1.md`.
   duplicate OPEN requests to the same person (seen live: pressing "Match me"
   twice created two identical requests). Consider rejecting a new request when an
   OPEN one already exists between the same pair, or de-duplicating in the list.
+  Note: largely subsumed by "Reflect already-requested state in Match finden"
+  under *Feature enhancements* below — do them together.
+
+---
+
+## Feature enhancements
+
+Refinements to the matching and meeting-point flow, beyond what v1 shipped.
+
+- [ ] **P2** **Suggest meeting points in the overlap of both people's radii.**
+  Today the "Treffpunkt vorschlagen" field is a free-text box that geocodes
+  whatever the user types. Instead, offer concrete suggestions that are actually
+  reachable for *both* participants:
+  - Compute the two search radii (each person's `schritteziel × 0.73 m`, with the
+    same default as elsewhere), optionally widened by a tolerance (~±1000 steps —
+    tune this) so the overlap isn't empty for people at the edge of each other's
+    range.
+  - Find meeting points (reuse the Overpass client, `lib/meetingPoints.ts`) that
+    lie inside *both* radii — i.e. within the lens-shaped intersection of the two
+    circles, not just one person's radius.
+  - Present them as a list; clicking a suggestion fills it into the existing
+    free-text field as the proposal (keep free text as a fallback).
+  - Alternative / additional UI: a map showing both participants' locations, both
+    step radii, and the candidate points in the intersection, with click-to-pick.
+    Respect `locationPrecision` — a person who chose POSTAL_CODE/CITY must not have
+    their exact point revealed here either (reuse `lib/locationPrivacy.ts`; note
+    this makes the intersection coarser, which is acceptable).
+  - Server-side, this needs the counterpart's location and step goal, which the
+    match-request detail API does not currently expose — extend it carefully so it
+    still doesn't leak more than `locationPrecision` allows.
+
+- [ ] **P2** **Make meeting points negotiable (propose → accept/reject → counter).**
+  A proposed meeting point should be acceptable or rejectable by the other person,
+  who can also make a counter-proposal, which is then in turn acceptable/rejectable
+  — a small back-and-forth until both agree. Needs a data model for the current
+  proposal and its state (proposed-by, status: pending/accepted/rejected), rather
+  than the single `meetingPoint{Name,Lat,Lng}` fields the request has now. Consider
+  whether an accepted meeting point should lock the field. Keep it in the same
+  detail view as the chat.
+
+- [ ] **P2** **Reflect already-requested state in "Match finden".**
+  Once a user has been sent a request, they should no longer be re-requestable from
+  the match screen:
+  - Exclude them from the random "Match me" pool (no second automatic request to
+    someone already asked).
+  - Disable the per-person "Anfragen" button; replace it with a "Bereits angefragt"
+    label + check icon, plus a second button that jumps to the existing
+    conversation in Nachrichten.
+  - On the map, mark an already-requested person's marker distinctly (a badge /
+    different colour) so it's visible there too.
+  - Needs the candidates API (`app/api/match/candidates/route.ts`) to know which
+    listed users the current user already has a request with (any non-closed
+    request, at least). This also covers the duplicate-OPEN-request known issue
+    above. Exact visual treatment (badge vs. colour, button layout) is worth a
+    quick design pass before building.
 
 ---
 
