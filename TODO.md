@@ -10,45 +10,44 @@ Legend: `[ ]` open · `[x]` done · **P1** blocks v1 · **P2** wanted soon · **
 
 Everything needed to continue is in the repository — no session history required.
 
-**Where the code is.** Work happens on branch `v1-implementation`, in a git
-worktree at `.worktrees/v1-implementation` (gitignored). If it is missing:
+**Status.** The v1 implementation plan
+(`docs/superpowers/plans/2026-07-16-lunch-match-v1.md`, all 24 tasks) is
+**complete and merged into `main`**, including the final whole-branch review.
+What remains is the backlog below: the onboarding wizard, known issues, feature
+enhancements, and the v2 scope from the thesis. `git log --oneline` is the
+authoritative history.
+
+**Where the code is.** All on branch `main` in this repository root — there is
+no longer a separate worktree or `v1-implementation` branch (merged and removed).
+
+**Running it:**
 
 ```bash
-git worktree add .worktrees/v1-implementation v1-implementation
-cd .worktrees/v1-implementation && npm install
-```
-
-**What to build next.** `docs/superpowers/plans/2026-07-16-lunch-match-v1.md`
-contains all 24 tasks in full: exact file paths, complete code, test cases,
-verification steps, and the commit command for each. Work them in order. The
-checklist below records which are done; `git log --oneline` is the other source
-of truth.
-
-**How the work is executed.** Each task: implement → run its verification →
-commit → review the diff against the task's requirements → fix findings →
-re-review → tick it off here. Findings not worth fixing immediately go under
-*Known issues* below rather than being dropped.
-
-**Before starting the dev server:**
-
-```bash
-docker compose up -d db     # PostgreSQL
+docker compose up -d db     # PostgreSQL on :5432
 npm run dev                 # http://localhost:3000
 ```
 
 Do not run `npm run build` while `npm run dev` is running — it overwrites the
-dev server's `.next` cache and breaks it until restarted.
+dev server's `.next` cache and breaks it until restarted. Run only one dev
+server and one DB container at a time (a second of either, e.g. from another
+checkout, races on the same `.next` / port 5432 and corrupts things).
 
 **Test accounts.** Accounts are anonymous (Account ID + Recovery Key, shown
-once, no reset). `npm run db:seed` creates two demo users near each other in
-Berlin and prints their credentials — save them. Several tasks need two accounts
-with nearby locations, otherwise matching legitimately returns nothing.
+once, no reset). `npm run db:seed` wipes and recreates 12 demo users across
+Berlin-Mitte plus match requests in every status, and prints all credentials.
+Sign in as "Nutzerin A" — she has a full match list and messages in every state.
+
+**How new backlog work should be executed.** Each unit: implement → run its
+verification → commit → review the diff against requirements → fix findings →
+re-review. Findings not worth fixing immediately go under *Known issues* rather
+than being dropped.
 
 ---
 
-## v1 — remaining implementation
+## v1 — implementation plan (complete ✅)
 
-Tracked in `docs/superpowers/plans/2026-07-16-lunch-match-v1.md`.
+All 24 tasks from `docs/superpowers/plans/2026-07-16-lunch-match-v1.md` are
+implemented, reviewed, and merged into `main`. Nothing here is outstanding.
 
 - [x] Tasks 1–4 — scaffolding, Vitest, PostgreSQL, Prisma schema
 - [x] Tasks 5–10 — search radius, haversine, identity, match filters, geocoding, meeting points
