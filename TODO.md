@@ -184,12 +184,10 @@ implemented, reviewed, and merged into `main`. Nothing here is outstanding.
   extracting a `useMatchCandidates` hook and a `FilterPanel` would stop the shape
   being copied further.
 
-- [ ] **P3** `POST /api/match-requests` allows a sender to create unlimited
-  duplicate OPEN requests to the same person (seen live: pressing "Match me"
-  twice created two identical requests). Consider rejecting a new request when an
-  OPEN one already exists between the same pair, or de-duplicating in the list.
-  Note: largely subsumed by "Reflect already-requested state in Match finden"
-  under *Feature enhancements* below — do them together.
+- [x] `POST /api/match-requests` allowed unlimited duplicate active requests to
+  the same person. Fixed together with "Reflect already-requested state" below:
+  the route now rejects a new request when an OPEN/ACCEPTED one already exists
+  between the pair (409 + `existingRequestId`).
 
 ---
 
@@ -252,21 +250,17 @@ Refinements to the matching and meeting-point flow, beyond what v1 shipped.
   whether an accepted meeting point should lock the field. Keep it in the same
   detail view as the chat.
 
-- [ ] **P2** **Reflect already-requested state in "Match finden".**
-  Once a user has been sent a request, they should no longer be re-requestable from
-  the match screen:
-  - Exclude them from the random "Match me" pool (no second automatic request to
-    someone already asked).
-  - Disable the per-person "Anfragen" button; replace it with a "Bereits angefragt"
-    label + check icon, plus a second button that jumps to the existing
-    conversation in Nachrichten.
-  - On the map, mark an already-requested person's marker distinctly (a badge /
-    different colour) so it's visible there too.
-  - Needs the candidates API (`app/api/match/candidates/route.ts`) to know which
-    listed users the current user already has a request with (any non-closed
-    request, at least). This also covers the duplicate-OPEN-request known issue
-    above. Exact visual treatment (badge vs. colour, button layout) is worth a
-    quick design pass before building.
+- [x] **Reflect already-requested state in "Match finden".** Done. A candidate
+  the current user has an active (OPEN/ACCEPTED) request with — either direction —
+  is no longer re-requestable: candidates API returns `activeRequestId`; the list
+  card shows a disabled "Bereits angefragt" (✓) plus a "Nachricht öffnen" link to
+  the conversation; "Match me" draws only from not-yet-requested people; the map
+  marks already-requested people with a distinct green check marker; and the POST
+  route rejects duplicates server-side. Closed (declined/withdrawn) requests don't
+  count, so a person can be asked again after a closed one.
+  - Possible follow-up polish: currently the whole card still highlights on click
+    for already-requested people too; fine, but a dedicated "connected" card style
+    could read even clearer. Low priority.
 
 ---
 
