@@ -195,20 +195,20 @@ implemented, reviewed, and merged into `main`. Nothing here is outstanding.
 
 Refinements to the matching and meeting-point flow, beyond what v1 shipped.
 
-- [ ] **P2** **Show step-radius circles on the "Match finden" map.**
-  Draw the current user's search radius as a light, semi-transparent circle
-  around their own marker (radius = `schritteziel × 0.73 m`, same maths as
-  `lib/searchRadius.ts` / the candidates API — it already returns `radiusMeters`,
-  so reuse it rather than recomputing). Leaflet's `<Circle>` (react-leaflet)
-  centred on the origin does this directly. When a user in the result list / on
-  the map is selected (clicked), also draw *their* step radius as a second circle
-  around their marker, using their step goal.
-  - This needs each candidate's radius (or step goal) from the candidates API,
-    which it does not currently return — add it. Respect `locationPrecision`:
-    the circle is centred on the already-coarsened coordinate the API returns, so
-    it inherits the same privacy behaviour (no extra leak).
-  - Keep it subtle so it doesn't drown the markers (low opacity fill, thin
-    stroke, theme colours — own radius vs. selected radius visually distinct).
+- [x] **Show step-radius circles on the "Match finden" map.** Done. The current
+  user's search radius is drawn as a subtle circle around their origin marker
+  (green `--accent`, thin stroke, 7% fill); selecting a person draws *their* step
+  radius as a second, visually distinct circle around their marker (amber
+  `--primary`, dashed). The candidates API now returns each candidate's
+  `radiusMeters`, centred on the already-coarsened coordinate so it inherits
+  `locationPrecision` (no extra leak). Circles are non-interactive and sit in
+  Leaflet's overlay pane below the markers, so markers stay clickable and on top.
+  Colours resolve from theme tokens at runtime (`themeHsl` helper) since Leaflet
+  paints SVG via presentation attributes where `var(--…)` wouldn't resolve.
+  - Known limitation: at the default zoom (15) a typical radius (730 m–3 km) has
+    its edge off-screen, so the full ring only shows after zooming out. Left the
+    default zoom alone deliberately — fitting to the radius would shrink the
+    participant/meeting-point markers, which is the primary browsing view.
   - Foundational for the overlap feature below and its follow-up.
 
 - [ ] **P2** **Suggest meeting points in the overlap of both people's radii.**
@@ -249,6 +249,23 @@ Refinements to the matching and meeting-point flow, beyond what v1 shipped.
   than the single `meetingPoint{Name,Lat,Lng}` fields the request has now. Consider
   whether an accepted meeting point should lock the field. Keep it in the same
   detail view as the chat.
+
+- [ ] **P2** **Show dates/timestamps on messages, matches, and match-list cards.**
+  Right now nothing on the message and match views is tied to a date, so you
+  cannot tell whether something is from today, yesterday, or last week. Surface a
+  timestamp everywhere it matters:
+  - Chat messages in `nachrichten/[id]` — each message needs a visible time (and a
+    day separator / date once it crosses a day boundary).
+  - Match/conversation entries in the `nachrichten` overview — show when the last
+    activity was.
+  - The candidate cards in the "Match finden" list — show the relevant date
+    **relative** ("heute", "gestern", "vor 3 Tagen"), not an absolute timestamp, so
+    it's readable at a glance.
+  - Use one shared relative-time helper (German output) across all three so the
+    formatting doesn't drift; consider absolute-on-hover (`title`) for precision.
+  - The data is already there (`createdAt`/`updatedAt` on the relevant models) —
+    this is mostly a display change; confirm the candidates API returns whatever
+    date the card should key off before wiring the UI.
 
 - [x] **Reflect already-requested state in "Match finden".** Done. A candidate
   the current user has an active (OPEN/ACCEPTED) request with — either direction —

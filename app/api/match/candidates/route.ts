@@ -3,7 +3,11 @@ import { NextResponse } from "next/server";
 import type { Karrierelevel } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { calculateSearchRadiusMeters, metersToSteps } from "@/lib/searchRadius";
+import {
+  calculateSearchRadiusMeters,
+  metersToSteps,
+  DEFAULT_SEARCH_RADIUS_METERS,
+} from "@/lib/searchRadius";
 import { filterCandidates, type Candidate, type MatchFilters } from "@/lib/matchFilters";
 import { coarsenCoordinates } from "@/lib/locationPrivacy";
 
@@ -77,6 +81,7 @@ export async function GET(request: Request) {
       alias: true,
       lat: true,
       lng: true,
+      schritteziel: true,
       locationPrecision: true,
       branche: true,
       brancheVisible: true,
@@ -91,6 +96,12 @@ export async function GET(request: Request) {
   // the coordinate that leaves the server — the exact point never reaches
   // another user who chose POSTAL_CODE or CITY.
   const precisionById = new Map(otherUsers.map((u) => [u.id, u.locationPrecision]));
+
+  // Each candidate's own search radius (their schritteziel × step length), so
+  // the map can draw a circle showing how far *they* would walk — same maths
+  // the current user's radius uses. Centred on the coarsened coordinate below,
+  // it inherits the same locationPrecision behaviour and leaks nothing extra.
+  const radiusById = new Map(otherUsers.map((u) => [u.id, calculateSearchRadiusMeters(u.schritteziel)]));
 
   // A candidate the current user already has an *active* (OPEN or ACCEPTED)
   // request with — in either direction — must not be re-requestable from the
@@ -137,6 +148,7 @@ export async function GET(request: Request) {
       karrierelevel: c.karrierelevel,
       lat: shown.lat,
       lng: shown.lng,
+      radiusMeters: radiusById.get(c.id) ?? DEFAULT_SEARCH_RADIUS_METERS,
       activeRequestId: activeRequestByCounterpart.get(c.id) ?? null,
     };
   });

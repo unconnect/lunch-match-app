@@ -34,6 +34,9 @@ interface CandidatePerson {
   karrierelevel: (typeof karrierelevelValues)[number] | null;
   lat: number;
   lng: number;
+  // This person's own search radius in metres (their step goal × step length).
+  // Drawn as a circle around their marker when they're selected on the map.
+  radiusMeters: number;
   // Id of an existing active (OPEN/ACCEPTED) request with this person, in
   // either direction — null if none. Non-null means "already requested": not
   // re-requestable, links to the existing conversation instead.
@@ -167,7 +170,15 @@ export default function MatchFindenPage() {
   // Markers carry a plain alreadyRequested flag so the map can style them
   // distinctly without knowing about request ids.
   const mapPeople = useMemo(
-    () => people.map((p) => ({ id: p.id, alias: p.alias, lat: p.lat, lng: p.lng, alreadyRequested: !!p.activeRequestId })),
+    () =>
+      people.map((p) => ({
+        id: p.id,
+        alias: p.alias,
+        lat: p.lat,
+        lng: p.lng,
+        radiusMeters: p.radiusMeters,
+        alreadyRequested: !!p.activeRequestId,
+      })),
     [people]
   );
 
@@ -298,6 +309,7 @@ export default function MatchFindenPage() {
         <h1 className="text-2xl font-semibold">Match finden</h1>
         <MapView
           origin={candidatesData.origin}
+          originRadiusMeters={candidatesData.radiusMeters}
           people={mapPeople}
           meetingPoints={meetingPoints}
           selectedId={selectedId}

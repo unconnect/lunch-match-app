@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { haversineDistanceMeters } from "@/lib/geo";
@@ -64,6 +64,18 @@ function participantIcon(selected: boolean, alreadyRequested: boolean) {
   });
 }
 
+// Leaflet paints SVG paths via presentation attributes (stroke="…"), where
+// CSS custom properties don't resolve — `var(--primary)` would be ignored. So
+// read the theme token's raw HSL components (globals.css stores them as
+// "21 90% 40%") at call time and wrap them in hsl(), which follows the active
+// light/dark theme without hard-coding a colour here.
+function themeHsl(token: string, alpha = 1): string {
+  if (typeof window === "undefined") return "transparent";
+  const raw = getComputedStyle(document.documentElement).getPropertyValue(token).trim();
+  if (!raw) return "transparent";
+  return alpha === 1 ? `hsl(${raw})` : `hsl(${raw} / ${alpha})`;
+}
+
 const meetingPointIcon = squareIcon(MEETING_POINT_SIZE, "rounded-full border border-background bg-muted-foreground/70");
 
 const originIcon = squareIcon(ORIGIN_SIZE, "rotate-45 rounded-md border-2 border-background bg-accent shadow-lg");
@@ -79,6 +91,7 @@ export interface MapPerson {
   alias: string | null;
   lat: number;
   lng: number;
+  radiusMeters?: number;
   alreadyRequested?: boolean;
 }
 
@@ -91,6 +104,9 @@ export interface MapMeetingPoint {
 
 interface MapViewProps {
   origin: { lat: number; lng: number };
+  // The current user's own search radius in metres — drawn as a circle around
+  // their origin marker so they can see how far the app searches.
+  originRadiusMeters: number;
   people: MapPerson[];
   meetingPoints: MapMeetingPoint[];
   selectedId: string | null;
@@ -105,7 +121,14 @@ function RecenterOnOrigin({ origin }: { origin: { lat: number; lng: number } }) 
   return null;
 }
 
-export function MapView({ origin, people, meetingPoints, selectedId, onSelectPerson }: MapViewProps) {
+export function MapView({
+  origin,
+  originRadiusMeters,
+  people,
+  meetingPoints,
+  selectedId,
+  onSelectPerson,
+}: MapViewProps) {
   const visibleMeetingPoints = useMemo(() => {
     const sorted = [...meetingPoints].sort(
       (a, b) => haversineDistanceMeters(origin, a) - haversineDistanceMeters(origin, b)
@@ -113,6 +136,37 @@ export function MapView({ origin, people, meetingPoints, selectedId, onSelectPer
     return sorted.slice(0, MAX_MEETING_POINTS_SHOWN);
   }, [meetingPoints, origin]);
   const hiddenMeetingPointsCount = meetingPoints.length - visibleMeetingPoints.length;
+
+  // The selected participant, if any — their step radius is drawn as a second
+  // circle. Only one is shown at a time to keep the map readable.
+  const selectedPerson = useMemo(
+    () => people.find((p) => p.id === selectedId) ?? null,
+    [people, selectedId]
+  );
+
+  // Own radius reads in --accent (green, matching the origin marker); the
+  // selected person's radius reads in --primary (amber, matching participant
+  // markers) and dashed, so the two circles never blur together. Both are kept
+  // subtle (thin stroke, faint fill) and non-interactive so they never bury the
+  // markers or steal clicks. Circles live in Leaflet's overlay pane, below the
+  // marker pane, so markers always stay on top regardless of render order.
+  const ownRadiusStyle = {
+    color: themeHsl("--accent"),
+    weight: 1.5,
+    opacity: 0.55,
+    fillColor: themeHsl("--accent"),
+    fillOpacity: 0.07,
+    interactive: false,
+  };
+  const selectedRadiusStyle = {
+    color: themeHsl("--primary"),
+    weight: 1.5,
+    opacity: 0.6,
+    dashArray: "5 5",
+    fillColor: themeHsl("--primary"),
+    fillOpacity: 0.07,
+    interactive: false,
+  };
 
   return (
     <div className="flex flex-col gap-2">
@@ -122,6 +176,14 @@ export function MapView({ origin, people, meetingPoints, selectedId, onSelectPer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <RecenterOnOrigin origin={origin} />
+        <Circle center={[origin.lat, origin.lng]} radius={originRadiusMeters} pathOptions={ownRadiusStyle} />
+        {selectedPerson && selectedPerson.radiusMeters != null && (
+          <Circle
+            center={[selectedPerson.lat, selectedPerson.lng]}
+            radius={selectedPerson.radiusMeters}
+            pathOptions={selectedRadiusStyle}
+          />
+        )}
         <Marker position={[origin.lat, origin.lng]} icon={originIcon}>
           <Popup>Dein Standort</Popup>
         </Marker>
