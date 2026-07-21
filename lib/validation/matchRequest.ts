@@ -9,8 +9,10 @@ export const createMatchRequestSchema = z.object({
 
 export type CreateMatchRequestInput = z.infer<typeof createMatchRequestSchema>;
 
+// ACCEPTED / DECLINED may only be set by the recipient; WITHDRAWN only by the
+// sender. The schema accepts all three; the route enforces who may set which.
 export const updateMatchRequestSchema = z.object({
-  status: z.enum(["ACCEPTED", "DECLINED"]).optional(),
+  status: z.enum(["ACCEPTED", "DECLINED", "WITHDRAWN"]).optional(),
   meetingPointQuery: z.string().min(1).max(200).optional(),
 });
 

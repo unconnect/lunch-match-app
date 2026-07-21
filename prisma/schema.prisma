@@ -29,6 +29,7 @@ enum MatchStatus {
   OPEN
   ACCEPTED
   DECLINED
+  WITHDRAWN
 }
 
 model User {
