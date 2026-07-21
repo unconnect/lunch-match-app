@@ -62,7 +62,8 @@ Tracked in `docs/superpowers/plans/2026-07-16-lunch-match-v1.md`.
       withdraws — new `WITHDRAWN` status; GET returns `canRespond`/`canWithdraw`)
 - [x] Tasks 22–23 — Nachrichten overview + detail pages (WITHDRAWN label & filter,
       sender withdraw, recipient accept/decline, chat polling, meeting-point map)
-- [ ] **P1** Task 24 — seed script + full two-account manual walkthrough
+- [x] Task 24 — seed script + full two-account end-to-end walkthrough (9/9 scripted
+      checks: seeded A finds B, request → chat → accept → geocoded meeting point)
 - [ ] **P1** Final whole-branch code review
 
 ---
