@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { useDebouncedValue } from "@/lib/hooks/useDebouncedValue";
 import { metersToSteps } from "@/lib/searchRadius";
 import { DEFAULT_OVERLAP_TOLERANCE_STEPS } from "@/lib/meetingSuggestions";
+import { orderSuggestionsIntoBatches, SUGGESTION_BATCH_SIZE } from "@/lib/meetingSuggestionsPaging";
 
 const SingleMarkerMap = dynamic(() => import("./SingleMarkerMap").then((m) => m.SingleMarkerMap), { ssr: false });
 
@@ -89,6 +90,9 @@ export default function NachrichtenDetailPage() {
   const [statusError, setStatusError] = useState<string | null>(null);
   const [toleranceSteps, setToleranceSteps] = useState(String(DEFAULT_OVERLAP_TOLERANCE_STEPS));
   const debouncedToleranceSteps = useDebouncedValue(toleranceSteps, 350);
+  const [suggestionsRequested, setSuggestionsRequested] = useState(false);
+  const [shuffleSeed, setShuffleSeed] = useState(0);
+  const [visibleCount, setVisibleCount] = useState(SUGGESTION_BATCH_SIZE);
 
   const { data: matchRequest, isLoading } = useQuery<MatchRequestDetail>({
     queryKey: ["match-request", params.id],
@@ -157,7 +161,7 @@ export default function NachrichtenDetailPage() {
   const closedForSuggestions = matchRequest ? isClosed(matchRequest.status) : true;
   const suggestionsQuery = useQuery<MeetingSuggestionsResponse>({
     queryKey: ["meeting-suggestions", params.id, debouncedToleranceSteps],
-    enabled: !closedForSuggestions,
+    enabled: suggestionsRequested && !closedForSuggestions,
     queryFn: async () => {
       const res = await fetch(
         `/api/match-requests/${params.id}/meeting-suggestions?toleranceSteps=${encodeURIComponent(debouncedToleranceSteps)}`
@@ -183,6 +187,20 @@ export default function NachrichtenDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["match-request", params.id] });
     },
   });
+
+  const loadSuggestions = () => {
+    setShuffleSeed(Date.now());
+    setVisibleCount(SUGGESTION_BATCH_SIZE);
+    setSuggestionsRequested(true);
+  };
+
+  // Both "Schließen" and any tolerance edit return to the collapsed button
+  // state and disable the query; the next load re-fetches with the current
+  // tolerance and a fresh shuffle.
+  const resetSuggestions = () => {
+    setSuggestionsRequested(false);
+    setVisibleCount(SUGGESTION_BATCH_SIZE);
+  };
 
   const messageForm = useForm<z.infer<typeof messageSchema>>({ resolver: zodResolver(messageSchema) });
   const sendMessageMutation = useMutation({
@@ -230,7 +248,14 @@ export default function NachrichtenDetailPage() {
           {!closed && (
             <>
               <div className="flex flex-col gap-2 border-b pb-3">
-                <p className="font-medium">Vorschläge in eurer Nähe</p>
+                <div className="flex items-center justify-between">
+                  <p className="font-medium">Vorschläge in eurer Nähe</p>
+                  {suggestionsRequested && (
+                    <Button type="button" variant="ghost" size="sm" onClick={resetSuggestions}>
+                      Schließen
+                    </Button>
+                  )}
+                </div>
                 <div className="flex flex-col gap-1">
                   <Label htmlFor="tolerance-steps">Toleranz (Schritte)</Label>
                   <Input
@@ -238,48 +263,92 @@ export default function NachrichtenDetailPage() {
                     type="number"
                     min="0"
                     value={toleranceSteps}
-                    onChange={(event) => setToleranceSteps(event.target.value)}
+                    onChange={(event) => {
+                      setToleranceSteps(event.target.value);
+                      resetSuggestions();
+                    }}
                   />
                   <p className="text-xs text-muted-foreground">
                     Ein höherer Wert vergrößert die Reichweite beider Personen, sodass mehr Orte infrage kommen.
                   </p>
                 </div>
-                {suggestionsQuery.isLoading && (
-                  <p className="text-sm text-muted-foreground">Lädt Vorschläge…</p>
+
+                {!suggestionsRequested && (
+                  <Button type="button" variant="outline" onClick={loadSuggestions}>
+                    Lade 10 Vorschläge
+                  </Button>
                 )}
-                {suggestionsQuery.isError && (
-                  <p className="text-sm text-destructive">
-                    Vorschläge konnten nicht geladen werden.
-                  </p>
-                )}
-                {suggestionsQuery.data && suggestionsQuery.data.reason && (
-                  <p className="text-sm text-muted-foreground">
-                    {suggestionEmptyNote[suggestionsQuery.data.reason]}
-                  </p>
-                )}
-                {suggestionsQuery.data?.suggestions.map((suggestion) => (
-                  <div key={suggestion.id} className="flex items-center justify-between gap-2">
-                    <div className="flex flex-col">
-                      <span className="text-sm">{suggestion.name}</span>
-                      <span className="text-xs text-muted-foreground">
-                        Du: {metersToSteps(suggestion.distanceOwnMeters)} Schritte · Andere:{" "}
-                        {metersToSteps(suggestion.distanceCounterpartMeters)} Schritte
-                      </span>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => applySuggestionMutation.mutate(suggestion)}
-                      disabled={applySuggestionMutation.isPending}
-                    >
-                      Übernehmen
-                    </Button>
-                  </div>
-                ))}
-                {applySuggestionMutation.isError && (
-                  <p className="text-sm text-destructive">
-                    {(applySuggestionMutation.error as Error).message}
-                  </p>
+
+                {suggestionsRequested && (
+                  <>
+                    {suggestionsQuery.isLoading && (
+                      <p className="text-sm text-muted-foreground">Lädt Vorschläge…</p>
+                    )}
+                    {suggestionsQuery.isError && (
+                      <p className="text-sm text-destructive">
+                        Vorschläge konnten nicht geladen werden.
+                      </p>
+                    )}
+                    {suggestionsQuery.data && suggestionsQuery.data.reason && (
+                      <p className="text-sm text-muted-foreground">
+                        {suggestionEmptyNote[suggestionsQuery.data.reason]}
+                      </p>
+                    )}
+                    {suggestionsQuery.data &&
+                      orderSuggestionsIntoBatches(
+                        suggestionsQuery.data.suggestions,
+                        shuffleSeed,
+                        visibleCount
+                      ).map((suggestion) => {
+                        const isApplied =
+                          matchRequest.meetingPointLat === suggestion.lat &&
+                          matchRequest.meetingPointLng === suggestion.lng;
+                        return (
+                          <div
+                            key={suggestion.id}
+                            className={cn(
+                              "flex items-center justify-between gap-2 rounded-md px-2 py-1",
+                              isApplied && "bg-muted"
+                            )}
+                          >
+                            <div className="flex flex-col">
+                              <span className="text-sm">{suggestion.name}</span>
+                              <span className="text-xs text-muted-foreground">
+                                Du: {metersToSteps(suggestion.distanceOwnMeters)} Schritte · Andere:{" "}
+                                {metersToSteps(suggestion.distanceCounterpartMeters)} Schritte
+                              </span>
+                            </div>
+                            {isApplied ? (
+                              <span className="text-xs font-medium text-muted-foreground">Übernommen</span>
+                            ) : (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => applySuggestionMutation.mutate(suggestion)}
+                                disabled={applySuggestionMutation.isPending}
+                              >
+                                Übernehmen
+                              </Button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    {suggestionsQuery.data &&
+                      visibleCount < suggestionsQuery.data.suggestions.length && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => setVisibleCount((c) => c + SUGGESTION_BATCH_SIZE)}
+                        >
+                          Weitere 10 laden
+                        </Button>
+                      )}
+                    {applySuggestionMutation.isError && (
+                      <p className="text-sm text-destructive">
+                        {(applySuggestionMutation.error as Error).message}
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
               <form
