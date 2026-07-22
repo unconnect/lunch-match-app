@@ -247,6 +247,11 @@ export default function NachrichtenDetailPage() {
                 {suggestionsQuery.isLoading && (
                   <p className="text-sm text-muted-foreground">Lädt Vorschläge…</p>
                 )}
+                {suggestionsQuery.isError && (
+                  <p className="text-sm text-destructive">
+                    Vorschläge konnten nicht geladen werden.
+                  </p>
+                )}
                 {suggestionsQuery.data && suggestionsQuery.data.reason && (
                   <p className="text-sm text-muted-foreground">
                     {suggestionEmptyNote[suggestionsQuery.data.reason]}

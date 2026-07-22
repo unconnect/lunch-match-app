@@ -23,9 +23,8 @@ describe("circlesOverlap", () => {
     expect(circlesOverlap(own, 1000, cp, 1000, 0)).toBe(true);
   });
 
-  it("returns true when the circles exactly touch (sum equals distance)", () => {
-    const d = 1360; // approx; use small radii that sum to just over the gap
-    // 680 + 680 = 1360 ≈ distance → touching counts as overlap (<=).
+  it("returns true when the circles nearly touch (sum ≈ distance)", () => {
+    // 680 + 680 = 1360 ≈ distance (~1353-1367 m) → touching counts as overlap (<=).
     expect(circlesOverlap(own, 680, cp, 680, 0)).toBe(true);
   });
 

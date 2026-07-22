@@ -21,6 +21,9 @@ const MAX_TOLERANCE_STEPS = 20000;
 
 function resolveToleranceSteps(param: string | null): number | { error: string } {
   if (param == null) return DEFAULT_OVERLAP_TOLERANCE_STEPS;
+  // An empty string (e.g. `?toleranceSteps=`) becomes Number("") === 0, i.e.
+  // tolerance 0 — a valid, stricter search — not the default. Only a fully
+  // absent param (handled above) uses the default.
   const parsed = Number(param);
   if (!Number.isFinite(parsed) || parsed < 0) {
     return { error: "Ungültige Toleranz." };
@@ -71,9 +74,13 @@ export async function GET(request: Request, { params }: { params: { id: string }
   }
 
   // Query around the current user's origin with the widened own-radius. Every
-  // point in the lens is within (ownRadius + tolerance) of ownOrigin, so this
-  // single call provably contains the whole intersection. No cuisine filter —
-  // the detail page has none.
+  // point in the lens is within (ownRadius + tolerance) of ownOrigin, so a
+  // single call contains the whole intersection — except when
+  // (ownRadius + tolerance) exceeds MAX_RADIUS_METERS, where the query disk is
+  // capped at MAX_RADIUS_METERS and the lens is truncated to that cap. That only
+  // happens at extreme step goals and only drops points far beyond walking
+  // range, so the result stays correct (no wrong point is ever returned).
+  // No cuisine filter — the detail page has none.
   const queryRadiusMeters = Math.min(ownRadiusMeters + toleranceMeters, MAX_RADIUS_METERS);
   const candidates = await findMeetingPoints(ownOrigin, queryRadiusMeters);
 
