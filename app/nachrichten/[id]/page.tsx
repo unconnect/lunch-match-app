@@ -12,8 +12,12 @@ import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { useDebouncedValue } from "@/lib/hooks/useDebouncedValue";
+import { metersToSteps } from "@/lib/searchRadius";
+import { DEFAULT_OVERLAP_TOLERANCE_STEPS } from "@/lib/meetingSuggestions";
 
 const SingleMarkerMap = dynamic(() => import("./SingleMarkerMap").then((m) => m.SingleMarkerMap), { ssr: false });
 
@@ -40,6 +44,29 @@ interface MessageItem {
   createdAt: string;
 }
 
+interface MeetingSuggestion {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  distanceOwnMeters: number;
+  distanceCounterpartMeters: number;
+}
+
+type SuggestionReason = null | "counterpart-no-location" | "no-overlap" | "none-found";
+
+interface MeetingSuggestionsResponse {
+  suggestions: MeetingSuggestion[];
+  reason: SuggestionReason;
+}
+
+const suggestionEmptyNote: Record<Exclude<SuggestionReason, null>, string> = {
+  "counterpart-no-location": "Die andere Person hat noch keinen Standort hinterlegt.",
+  "no-overlap":
+    "Eure Radien überlappen sich nicht. Erhöhe die Toleranz oder gib einen Treffpunkt frei ein.",
+  "none-found": "Im gemeinsamen Bereich wurden keine Orte gefunden.",
+};
+
 // Once a request has left OPEN there is nothing left to negotiate: the
 // meeting-point proposal form, the accept/decline/withdraw buttons, and the
 // message composer would all act on a conversation that is already closed.
@@ -60,6 +87,8 @@ export default function NachrichtenDetailPage() {
   const queryClient = useQueryClient();
   const { data: session } = useSession();
   const [statusError, setStatusError] = useState<string | null>(null);
+  const [toleranceSteps, setToleranceSteps] = useState(String(DEFAULT_OVERLAP_TOLERANCE_STEPS));
+  const debouncedToleranceSteps = useDebouncedValue(toleranceSteps, 350);
 
   const { data: matchRequest, isLoading } = useQuery<MatchRequestDetail>({
     queryKey: ["match-request", params.id],
@@ -125,6 +154,36 @@ export default function NachrichtenDetailPage() {
     },
   });
 
+  const closedForSuggestions = matchRequest ? isClosed(matchRequest.status) : true;
+  const suggestionsQuery = useQuery<MeetingSuggestionsResponse>({
+    queryKey: ["meeting-suggestions", params.id, debouncedToleranceSteps],
+    enabled: !closedForSuggestions,
+    queryFn: async () => {
+      const res = await fetch(
+        `/api/match-requests/${params.id}/meeting-suggestions?toleranceSteps=${encodeURIComponent(debouncedToleranceSteps)}`
+      );
+      if (!res.ok) throw new Error("Vorschläge konnten nicht geladen werden.");
+      return res.json();
+    },
+  });
+
+  const applySuggestionMutation = useMutation({
+    mutationFn: async (suggestion: MeetingSuggestion) => {
+      const res = await fetch(`/api/match-requests/${params.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          meetingPoint: { name: suggestion.name, lat: suggestion.lat, lng: suggestion.lng },
+        }),
+      });
+      if (!res.ok) throw new Error("Treffpunkt konnte nicht übernommen werden.");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["match-request", params.id] });
+    },
+  });
+
   const messageForm = useForm<z.infer<typeof messageSchema>>({ resolver: zodResolver(messageSchema) });
   const sendMessageMutation = useMutation({
     mutationFn: async (values: z.infer<typeof messageSchema>) => {
@@ -170,6 +229,54 @@ export default function NachrichtenDetailPage() {
           )}
           {!closed && (
             <>
+              <div className="flex flex-col gap-2 border-b pb-3">
+                <p className="font-medium">Vorschläge in eurer Nähe</p>
+                <div className="flex flex-col gap-1">
+                  <Label htmlFor="tolerance-steps">Toleranz (Schritte)</Label>
+                  <Input
+                    id="tolerance-steps"
+                    type="number"
+                    min="0"
+                    value={toleranceSteps}
+                    onChange={(event) => setToleranceSteps(event.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Ein höherer Wert vergrößert die Reichweite beider Personen, sodass mehr Orte infrage kommen.
+                  </p>
+                </div>
+                {suggestionsQuery.isLoading && (
+                  <p className="text-sm text-muted-foreground">Lädt Vorschläge…</p>
+                )}
+                {suggestionsQuery.data && suggestionsQuery.data.reason && (
+                  <p className="text-sm text-muted-foreground">
+                    {suggestionEmptyNote[suggestionsQuery.data.reason]}
+                  </p>
+                )}
+                {suggestionsQuery.data?.suggestions.map((suggestion) => (
+                  <div key={suggestion.id} className="flex items-center justify-between gap-2">
+                    <div className="flex flex-col">
+                      <span className="text-sm">{suggestion.name}</span>
+                      <span className="text-xs text-muted-foreground">
+                        Du: {metersToSteps(suggestion.distanceOwnMeters)} Schritte · Andere:{" "}
+                        {metersToSteps(suggestion.distanceCounterpartMeters)} Schritte
+                      </span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => applySuggestionMutation.mutate(suggestion)}
+                      disabled={applySuggestionMutation.isPending}
+                    >
+                      Übernehmen
+                    </Button>
+                  </div>
+                ))}
+                {applySuggestionMutation.isError && (
+                  <p className="text-sm text-destructive">
+                    {(applySuggestionMutation.error as Error).message}
+                  </p>
+                )}
+              </div>
               <form
                 onSubmit={meetingPointForm.handleSubmit((values) => meetingPointMutation.mutate(values))}
                 className="flex gap-2"
