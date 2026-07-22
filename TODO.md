@@ -211,7 +211,20 @@ Refinements to the matching and meeting-point flow, beyond what v1 shipped.
     participant/meeting-point markers, which is the primary browsing view.
   - Foundational for the overlap feature below and its follow-up.
 
-- [ ] **P2** **Suggest meeting points in the overlap of both people's radii.**
+- [x] **P2** **Suggest meeting points in the overlap of both people's radii.**
+  Done, manually verified end-to-end. Shipped as a list on the match-request
+  detail page (no map — the map UI stays the P3 follow-up below). A new
+  `GET /api/match-requests/[id]/meeting-suggestions` composes the pure geometry
+  module `lib/meetingSuggestions.ts` (`circlesOverlap` + `suggestionsInIntersection`,
+  ranked by `max(distOwn, distCp)`) with Overpass and `lib/locationPrivacy.ts`
+  (counterpart origin coarsened, exact point never leaves the server). Tolerance
+  is a user-adjustable "Toleranz (Schritte)" filter (default 1000). Clicking a
+  suggestion applies it directly via `PATCH { meetingPoint }` (no re-geocode);
+  free text stays as the fallback. Enhancement: the list loads on demand ("Lade
+  10 Vorschläge"), reveals 10 at a time (random draw, ordered within each batch,
+  `lib/meetingSuggestionsPaging.ts`), is closable, and marks the applied place
+  ("Übernommen"). Specs/plans under `docs/superpowers/`.
+  Original spec below, for reference:
   Today the "Treffpunkt vorschlagen" field is a free-text box that geocodes
   whatever the user types. Instead, offer concrete suggestions that are actually
   reachable for *both* participants:
