@@ -71,6 +71,13 @@ const suggestionEmptyNote: Record<Exclude<SuggestionReason, null>, string> = {
   "none-found": "Im gemeinsamen Bereich wurden keine Orte gefunden.",
 };
 
+const proposalStatusLabel: Record<Proposal["status"], string> = {
+  PENDING: "wartet auf Antwort",
+  ACCEPTED: "angenommen",
+  REJECTED: "abgelehnt",
+  SUPERSEDED: "überholt",
+};
+
 // Once a request has left OPEN there is nothing left to negotiate: the
 // meeting-point proposal form, the accept/decline/withdraw buttons, and the
 // message composer would all act on a conversation that is already closed.
@@ -479,17 +486,11 @@ export default function NachrichtenDetailPage() {
             const p = entry.proposal;
             const isOwn = ownId != null && p.proposedById === ownId;
             const who = isOwn ? "Du" : counterpartLabel;
-            const statusLabel: Record<Proposal["status"], string> = {
-              PENDING: "wartet auf Antwort",
-              ACCEPTED: "angenommen",
-              REJECTED: "abgelehnt",
-              SUPERSEDED: "überholt",
-            };
             return (
               <div key={`p-${entry.id}`} className="flex justify-center">
                 <div className="rounded-lg border px-3 py-2 text-center text-xs text-muted-foreground">
                   <span className="font-medium text-foreground">{who}</span> schlägt{" "}
-                  <span className="font-medium text-foreground">{p.name}</span> vor · {statusLabel[p.status]}
+                  <span className="font-medium text-foreground">{p.name}</span> vor · {proposalStatusLabel[p.status]}
                 </div>
               </div>
             );

@@ -54,25 +54,41 @@ export async function PATCH(
 
   if (parsed.data.action === "accept") {
     // Resolve the proposal and promote it to the agreed point atomically.
-    await prisma.$transaction([
-      prisma.meetingPointProposal.update({
-        where: { id: proposal.id },
+    // The status-guarded updateMany ensures a concurrent counter/supersede
+    // can't let a no-longer-PENDING proposal be accepted (write-skew).
+    const result = await prisma.$transaction(async (tx) => {
+      const resolved = await tx.meetingPointProposal.updateMany({
+        where: { id: proposal.id, status: "PENDING" },
         data: { status: "ACCEPTED", resolvedAt: new Date() },
-      }),
-      prisma.matchRequest.update({
+      });
+      if (resolved.count !== 1) return { conflict: true as const };
+      await tx.matchRequest.update({
         where: { id: matchRequest.id },
         data: {
           meetingPointName: proposal.name,
           meetingPointLat: proposal.lat,
           meetingPointLng: proposal.lng,
         },
-      }),
-    ]);
+      });
+      return { ok: true as const };
+    });
+    if ("conflict" in result) {
+      return NextResponse.json(
+        { error: "Dieser Vorschlag wurde bereits beantwortet." },
+        { status: 409 }
+      );
+    }
   } else {
-    await prisma.meetingPointProposal.update({
-      where: { id: proposal.id },
+    const resolved = await prisma.meetingPointProposal.updateMany({
+      where: { id: proposal.id, status: "PENDING" },
       data: { status: "REJECTED", resolvedAt: new Date() },
     });
+    if (resolved.count !== 1) {
+      return NextResponse.json(
+        { error: "Dieser Vorschlag wurde bereits beantwortet." },
+        { status: 409 }
+      );
+    }
   }
 
   return NextResponse.json({ id: proposal.id, action: parsed.data.action });
