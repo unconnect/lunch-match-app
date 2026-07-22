@@ -94,7 +94,16 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   }
 
   let meetingPointUpdate = {};
-  if (parsed.data.meetingPointQuery) {
+  // A structured pick is already precise; prefer it and skip geocoding. Free
+  // text still goes through the geocoder. If both are somehow sent, the
+  // structured pick wins.
+  if (parsed.data.meetingPoint) {
+    meetingPointUpdate = {
+      meetingPointName: parsed.data.meetingPoint.name,
+      meetingPointLat: parsed.data.meetingPoint.lat,
+      meetingPointLng: parsed.data.meetingPoint.lng,
+    };
+  } else if (parsed.data.meetingPointQuery) {
     const geocoded = await geocodeAddress(parsed.data.meetingPointQuery);
     if (!geocoded) {
       return NextResponse.json(
