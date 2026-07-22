@@ -20,7 +20,6 @@ describe("deriveNegotiationState", () => {
     const s = deriveNegotiationState([], false, "alice");
     expect(s.headerState).toBe("none");
     expect(s.pendingProposal).toBeNull();
-    expect(s.canRespond).toBe(false);
     expect(s.canPropose).toBe(true);
   });
 
@@ -35,7 +34,6 @@ describe("deriveNegotiationState", () => {
   it("is 'pending-awaiting-you' for the counterpart of a pending proposal", () => {
     const s = deriveNegotiationState([proposal({ proposedById: "alice" })], false, "bob");
     expect(s.headerState).toBe("pending-awaiting-you");
-    expect(s.canRespond).toBe(true);
     expect(s.canPropose).toBe(true); // counterpart may counter
     expect(s.pendingProposal?.id).toBe("p1");
   });
@@ -43,7 +41,6 @@ describe("deriveNegotiationState", () => {
   it("is 'pending-awaiting-them' for the proposer of a pending proposal", () => {
     const s = deriveNegotiationState([proposal({ proposedById: "alice" })], false, "alice");
     expect(s.headerState).toBe("pending-awaiting-them");
-    expect(s.canRespond).toBe(false);
     expect(s.canPropose).toBe(false); // proposer can't propose again while pending
   });
 

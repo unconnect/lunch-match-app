@@ -19,7 +19,6 @@ export type HeaderState =
 
 export interface NegotiationState {
   pendingProposal: Proposal | null;
-  canRespond: boolean;
   canPropose: boolean;
   headerState: HeaderState;
 }
@@ -36,9 +35,10 @@ export function deriveNegotiationState(
 ): NegotiationState {
   const pendingProposal = proposals.find((p) => p.status === "PENDING") ?? null;
 
-  const canRespond = pendingProposal !== null && pendingProposal.proposedById !== viewerId;
   // No pending proposal → anyone may propose. A pending proposal → only its
-  // counterpart may propose (a counter); its proposer may not.
+  // counterpart may propose (a counter); its proposer may not. The counterpart
+  // of a pending proposal is exactly who may respond to it — the UI reads that
+  // from `headerState === "pending-awaiting-you"`.
   const canPropose = pendingProposal === null || pendingProposal.proposedById !== viewerId;
 
   let headerState: HeaderState;
@@ -50,5 +50,5 @@ export function deriveNegotiationState(
     headerState = "pending-awaiting-you";
   }
 
-  return { pendingProposal, canRespond, canPropose, headerState };
+  return { pendingProposal, canPropose, headerState };
 }
