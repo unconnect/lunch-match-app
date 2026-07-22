@@ -47,9 +47,11 @@ export function orderSuggestionsIntoBatches(
   const shuffled = seededShuffle(suggestions, seed);
   const visible = shuffled.slice(0, Math.max(0, visibleCount));
 
+  // Guard the loop step: a non-positive batchSize would never advance `start`.
+  const step = Math.max(1, batchSize);
   const ordered: SuggestionWithDistances[] = [];
-  for (let start = 0; start < visible.length; start += batchSize) {
-    const chunk = visible.slice(start, start + batchSize);
+  for (let start = 0; start < visible.length; start += step) {
+    const chunk = visible.slice(start, start + step);
     chunk.sort((a, b) => maxDistance(a) - maxDistance(b));
     ordered.push(...chunk);
   }

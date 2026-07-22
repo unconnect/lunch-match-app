@@ -33,6 +33,13 @@ describe("orderSuggestionsIntoBatches", () => {
     expect(orderSuggestionsIntoBatches(makeSuggestions(30), 1, 0)).toEqual([]);
   });
 
+  it("does not hang and reveals every item when batchSize is 0", () => {
+    const s = makeSuggestions(15);
+    const result = orderSuggestionsIntoBatches(s, 3, 15, 0);
+    expect(result).toHaveLength(15);
+    expect([...result.map((x) => x.id)].sort()).toEqual([...s.map((x) => x.id)].sort());
+  });
+
   it("is deterministic for a fixed seed", () => {
     const s = makeSuggestions(30);
     const a = orderSuggestionsIntoBatches(s, 12345, 20);
