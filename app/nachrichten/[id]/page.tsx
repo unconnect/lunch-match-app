@@ -20,6 +20,7 @@ import { metersToSteps } from "@/lib/searchRadius";
 import { DEFAULT_OVERLAP_TOLERANCE_STEPS } from "@/lib/meetingSuggestions";
 import { orderSuggestionsIntoBatches, SUGGESTION_BATCH_SIZE } from "@/lib/meetingSuggestionsPaging";
 import { deriveNegotiationState, type Proposal } from "@/lib/meetingPointNegotiation";
+import { mergeTimeline } from "@/lib/timeline";
 
 const SingleMarkerMap = dynamic(() => import("./SingleMarkerMap").then((m) => m.SingleMarkerMap), { ssr: false });
 
@@ -459,17 +460,36 @@ export default function NachrichtenDetailPage() {
           <CardTitle>Nachrichten</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
-          {messages?.map((message) => {
-            const isOwn = ownId != null && message.senderId === ownId;
+          {mergeTimeline(messages ?? [], matchRequest.proposals).map((entry) => {
+            if (entry.kind === "message") {
+              const isOwn = ownId != null && entry.message.senderId === ownId;
+              return (
+                <div key={`m-${entry.id}`} className={cn("flex", isOwn ? "justify-end" : "justify-start")}>
+                  <div
+                    className={cn(
+                      "max-w-[75%] rounded-lg px-3 py-2 text-sm",
+                      isOwn ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
+                    )}
+                  >
+                    {entry.message.text}
+                  </div>
+                </div>
+              );
+            }
+            const p = entry.proposal;
+            const isOwn = ownId != null && p.proposedById === ownId;
+            const who = isOwn ? "Du" : counterpartLabel;
+            const statusLabel: Record<Proposal["status"], string> = {
+              PENDING: "wartet auf Antwort",
+              ACCEPTED: "angenommen",
+              REJECTED: "abgelehnt",
+              SUPERSEDED: "überholt",
+            };
             return (
-              <div key={message.id} className={cn("flex", isOwn ? "justify-end" : "justify-start")}>
-                <div
-                  className={cn(
-                    "max-w-[75%] rounded-lg px-3 py-2 text-sm",
-                    isOwn ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
-                  )}
-                >
-                  {message.text}
+              <div key={`p-${entry.id}`} className="flex justify-center">
+                <div className="rounded-lg border px-3 py-2 text-center text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">{who}</span> schlägt{" "}
+                  <span className="font-medium text-foreground">{p.name}</span> vor · {statusLabel[p.status]}
                 </div>
               </div>
             );
