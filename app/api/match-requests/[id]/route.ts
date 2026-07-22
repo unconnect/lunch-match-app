@@ -2,7 +2,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { geocodeAddress } from "@/lib/geocoding";
 import { getAuthorizedMatchRequest } from "@/lib/getAuthorizedMatchRequest";
 import { updateMatchRequestSchema } from "@/lib/validation/matchRequest";
 
@@ -19,6 +18,11 @@ export async function GET(request: Request, { params }: { params: { id: string }
 
   const counterpart = matchRequest.fromUserId === session.user.id ? matchRequest.toUser : matchRequest.fromUser;
 
+  const proposals = await prisma.meetingPointProposal.findMany({
+    where: { matchRequestId: matchRequest.id },
+    orderBy: { createdAt: "asc" },
+  });
+
   return NextResponse.json({
     id: matchRequest.id,
     status: matchRequest.status,
@@ -27,6 +31,16 @@ export async function GET(request: Request, { params }: { params: { id: string }
     meetingPointName: matchRequest.meetingPointName,
     meetingPointLat: matchRequest.meetingPointLat,
     meetingPointLng: matchRequest.meetingPointLng,
+    proposals: proposals.map((p) => ({
+      id: p.id,
+      proposedById: p.proposedById,
+      name: p.name,
+      lat: p.lat,
+      lng: p.lng,
+      status: p.status,
+      createdAt: p.createdAt,
+      resolvedAt: p.resolvedAt,
+    })),
     // Recipient may accept/decline; sender may withdraw their own request.
     canRespond: matchRequest.toUserId === session.user.id,
     canWithdraw: matchRequest.fromUserId === session.user.id,
@@ -93,36 +107,10 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     }
   }
 
-  let meetingPointUpdate = {};
-  // A structured pick is already precise; prefer it and skip geocoding. Free
-  // text still goes through the geocoder. If both are somehow sent, the
-  // structured pick wins.
-  if (parsed.data.meetingPoint) {
-    meetingPointUpdate = {
-      meetingPointName: parsed.data.meetingPoint.name,
-      meetingPointLat: parsed.data.meetingPoint.lat,
-      meetingPointLng: parsed.data.meetingPoint.lng,
-    };
-  } else if (parsed.data.meetingPointQuery) {
-    const geocoded = await geocodeAddress(parsed.data.meetingPointQuery);
-    if (!geocoded) {
-      return NextResponse.json(
-        { error: "Treffpunkt konnte nicht gefunden werden. Bitte präzisiere die Angabe." },
-        { status: 422 }
-      );
-    }
-    meetingPointUpdate = {
-      meetingPointName: parsed.data.meetingPointQuery,
-      meetingPointLat: geocoded.lat,
-      meetingPointLng: geocoded.lng,
-    };
-  }
-
   const updated = await prisma.matchRequest.update({
     where: { id: matchRequest.id },
     data: {
       ...(parsed.data.status ? { status: parsed.data.status } : {}),
-      ...meetingPointUpdate,
     },
   });
 
