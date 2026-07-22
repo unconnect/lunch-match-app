@@ -47,4 +47,10 @@ describe("mergeTimeline", () => {
     expect(entry.kind).toBe("message");
     if (entry.kind === "message") expect(entry.message.text).toBe("m-m1");
   });
+
+  it("breaks ties by id when timestamp and kind are equal", () => {
+    const t = "2026-07-22T10:00:00Z";
+    const result = mergeTimeline([], [prop("p2", t), prop("p1", t)]);
+    expect(result.map((e) => e.id)).toEqual(["p1", "p2"]);
+  });
 });
