@@ -291,6 +291,9 @@ Refinements to the matching and meeting-point flow, beyond what v1 shipped.
   - Possible follow-up polish: currently the whole card still highlights on click
     for already-requested people too; fine, but a dedicated "connected" card style
     could read even clearer. Low priority.
+- [ ] **P3** Add preferred Meeting-Times. 
+  - Filter matches based on that.
+  - Filter Meeting Points based on that.
 
 ---
 
