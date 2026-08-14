@@ -184,7 +184,13 @@ export default function NachrichtenDetailPage() {
           body: JSON.stringify({ action: input.action }),
         }
       );
-      if (!res.ok) throw new Error("Antwort konnte nicht gespeichert werden.");
+      if (!res.ok) {
+        // Surface the server's reason: by the time a 409/403 arrives the
+        // counterpart has usually already answered or countered, and "konnte
+        // nicht gespeichert werden" would hide why the banner is about to change.
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? "Antwort konnte nicht gespeichert werden.");
+      }
       return res.json();
     },
     onSuccess: () => {
@@ -304,6 +310,11 @@ export default function NachrichtenDetailPage() {
                   <p className="text-xs text-muted-foreground">
                     …oder mach unten einen Gegenvorschlag.
                   </p>
+                  {respondMutation.isError && (
+                    <p className="text-sm text-destructive">
+                      {(respondMutation.error as Error).message}
+                    </p>
+                  )}
                 </div>
               )}
               {negotiation.headerState === "pending-awaiting-them" && negotiation.pendingProposal && (
@@ -416,11 +427,6 @@ export default function NachrichtenDetailPage() {
                           Weitere 10 laden
                         </Button>
                       )}
-                    {proposeMutation.isError && (
-                      <p className="text-sm text-destructive">
-                        {(proposeMutation.error as Error).message}
-                      </p>
-                    )}
                   </>
                 )}
               </div>
@@ -435,6 +441,14 @@ export default function NachrichtenDetailPage() {
                   Vorschlagen
                 </Button>
               </form>
+              {/* Covers both propose paths: a suggestion pick and the free-text
+                  field above. Scoped to the suggestions box it left a failed
+                  free-text proposal (422 geocode miss, 409 conflict) silent. */}
+              {proposeMutation.isError && (
+                <p className="text-sm text-destructive">
+                  {(proposeMutation.error as Error).message}
+                </p>
+              )}
                 </>
               )}
             </>
