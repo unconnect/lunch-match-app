@@ -263,6 +263,25 @@ Refinements to the matching and meeting-point flow, beyond what v1 shipped.
   whether an accepted meeting point should lock the field. Keep it in the same
   detail view as the chat.
 
+- [ ] **P2** **Show the address and a relative-to-home map for a proposed meeting point.**
+  Follow-up to the negotiation feature. A proposal currently shows only the place
+  name. Make it easier for each person to judge a proposed spot:
+  - **Address:** reverse-geocode the meeting point's lat/lng to a human address and
+    show it alongside the name (both in the Treffpunkt card and the proposal's
+    chat entry), so "Café X" isn't the only cue. Reuse the geocoding layer
+    (`lib/geocoding.ts` is currently forward-only via Nominatim — add a reverse
+    lookup, cached/throttled the same way; store the resolved address on the
+    proposal so it isn't re-fetched on every poll).
+  - **Map per viewer:** in the proposal (card and/or its chat entry), render a small
+    map with the meeting-point marker **and the viewing user's own home pin**, so
+    each side sees the spot relative to where they start. This is per-viewer — each
+    user sees their *own* home, never the counterpart's (the counterpart's exact
+    point must stay server-side; only the viewer's own location is shown to them).
+    Extend `SingleMarkerMap.tsx` into a two-marker variant (meeting point + own
+    origin) rather than forking it.
+  - The own-origin coordinate is already on the user record; the meeting point is
+    on the proposal — no new privacy surface beyond the viewer's own location.
+
 - [ ] **P2** **Show dates/timestamps on messages, matches, and match-list cards.**
   Right now nothing on the message and match views is tied to a date, so you
   cannot tell whether something is from today, yesterday, or last week. Surface a
@@ -280,6 +299,32 @@ Refinements to the matching and meeting-point flow, beyond what v1 shipped.
     this is mostly a display change; confirm the candidates API returns whatever
     date the card should key off before wiring the UI.
 
+- [ ] **P2** **Unread badge on the "Nachrichten" tab (+ a plan for near-real-time updates).**
+  Show a count badge on the Nachrichten nav item when there are new/unread messages,
+  so a user notices activity without opening every conversation.
+  - **Needs an unread model first.** There's no read-state today — messages only have
+    `createdAt`. Add per-user, per-conversation read tracking (e.g. a `lastReadAt`
+    per participant on the match request, or a small `ConversationRead` row), then
+    "unread" = messages after `lastReadAt` not sent by the viewer. Opening a
+    conversation updates `lastReadAt`. The badge count is a cheap aggregate over that.
+  - **Freshness — options, roughly increasing effort/quality:**
+    1. **Interval poll (simplest):** a lightweight `GET /api/unread-count` polled every
+       X (30–60 s) from the nav, keyed in TanStack Query. Matches the existing 4 s
+       detail/message polling pattern; no new infra. Downside: not instant, constant
+       background requests.
+    2. **Server-Sent Events (recommended balance):** one `EventSource` stream that
+       pushes an unread-count update when a message arrives. One-way, plain HTTP,
+       works with a route handler — but needs a long-lived connection, so it must run
+       on the Node runtime, not the Edge/serverless default (confirm the deploy target
+       supports held-open responses).
+    3. **WebSockets / hosted realtime (Pusher, Ably, Supabase Realtime):** true
+       bidirectional push, lowest latency, but adds a service/custom server this app
+       doesn't currently have — overkill unless realtime chat delivery (not just a
+       badge) becomes a goal.
+  - **Recommendation:** start with option 1 (poll a count endpoint) since it reuses the
+    existing pattern and ships the badge immediately; revisit SSE if the polling feels
+    laggy or wasteful. Decide the unread model first — both approaches depend on it.
+
 - [x] **Reflect already-requested state in "Match finden".** Done. A candidate
   the current user has an active (OPEN/ACCEPTED) request with — either direction —
   is no longer re-requestable: candidates API returns `activeRequestId`; the list
@@ -291,6 +336,9 @@ Refinements to the matching and meeting-point flow, beyond what v1 shipped.
   - Possible follow-up polish: currently the whole card still highlights on click
     for already-requested people too; fine, but a dedicated "connected" card style
     could read even clearer. Low priority.
+- [ ] **P3** Add preferred Meeting-Times. 
+  - Filter matches based on that.
+  - Filter Meeting Points based on that.
 
 ---
 

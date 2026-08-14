@@ -7,3 +7,5 @@ node_modules/
 next-env.d.ts
 /.idea/
 .superpowers/
+# Local demo login credentials written by prisma/seed.ts (plaintext recovery keys).
+prisma/.seeded-credentials.json

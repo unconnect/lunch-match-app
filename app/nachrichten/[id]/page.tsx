@@ -19,6 +19,8 @@ import { useDebouncedValue } from "@/lib/hooks/useDebouncedValue";
 import { metersToSteps } from "@/lib/searchRadius";
 import { DEFAULT_OVERLAP_TOLERANCE_STEPS } from "@/lib/meetingSuggestions";
 import { orderSuggestionsIntoBatches, SUGGESTION_BATCH_SIZE } from "@/lib/meetingSuggestionsPaging";
+import { deriveNegotiationState, type Proposal } from "@/lib/meetingPointNegotiation";
+import { mergeTimeline } from "@/lib/timeline";
 
 const SingleMarkerMap = dynamic(() => import("./SingleMarkerMap").then((m) => m.SingleMarkerMap), { ssr: false });
 
@@ -32,6 +34,7 @@ interface MatchRequestDetail {
   meetingPointName: string | null;
   meetingPointLat: number | null;
   meetingPointLng: number | null;
+  proposals: Proposal[];
   // Recipient only: may accept/decline while OPEN.
   canRespond: boolean;
   // Sender only: may withdraw their own request while OPEN.
@@ -66,6 +69,13 @@ const suggestionEmptyNote: Record<Exclude<SuggestionReason, null>, string> = {
   "no-overlap":
     "Eure Radien überlappen sich nicht. Erhöhe die Toleranz oder gib einen Treffpunkt frei ein.",
   "none-found": "Im gemeinsamen Bereich wurden keine Orte gefunden.",
+};
+
+const proposalStatusLabel: Record<Proposal["status"], string> = {
+  PENDING: "wartet auf Antwort",
+  ACCEPTED: "angenommen",
+  REJECTED: "abgelehnt",
+  SUPERSEDED: "überholt",
 };
 
 // Once a request has left OPEN there is nothing left to negotiate: the
@@ -139,22 +149,46 @@ export default function NachrichtenDetailPage() {
   const meetingPointForm = useForm<z.infer<typeof meetingPointSchema>>({
     resolver: zodResolver(meetingPointSchema),
   });
-  const meetingPointMutation = useMutation({
-    mutationFn: async (values: z.infer<typeof meetingPointSchema>) => {
-      const res = await fetch(`/api/match-requests/${params.id}`, {
-        method: "PATCH",
+
+  // Proposing replaces the old instant-apply: a suggestion pick sends a
+  // structured point, the free-text field sends a query to geocode. Either
+  // creates a PENDING proposal the counterpart must answer.
+  const proposeMutation = useMutation({
+    mutationFn: async (
+      input: { name: string; lat: number; lng: number } | { query: string }
+    ) => {
+      const res = await fetch(`/api/match-requests/${params.id}/meeting-point-proposals`, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(values),
+        body: JSON.stringify(input),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.error ?? "Treffpunkt konnte nicht gespeichert werden.");
+        throw new Error(body.error ?? "Vorschlag konnte nicht gesendet werden.");
       }
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["match-request", params.id] });
       meetingPointForm.reset();
+    },
+  });
+
+  const respondMutation = useMutation({
+    mutationFn: async (input: { proposalId: string; action: "accept" | "reject" }) => {
+      const res = await fetch(
+        `/api/match-requests/${params.id}/meeting-point-proposals/${input.proposalId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: input.action }),
+        }
+      );
+      if (!res.ok) throw new Error("Antwort konnte nicht gespeichert werden.");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["match-request", params.id] });
     },
   });
 
@@ -168,23 +202,6 @@ export default function NachrichtenDetailPage() {
       );
       if (!res.ok) throw new Error("Vorschläge konnten nicht geladen werden.");
       return res.json();
-    },
-  });
-
-  const applySuggestionMutation = useMutation({
-    mutationFn: async (suggestion: MeetingSuggestion) => {
-      const res = await fetch(`/api/match-requests/${params.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          meetingPoint: { name: suggestion.name, lat: suggestion.lat, lng: suggestion.lng },
-        }),
-      });
-      if (!res.ok) throw new Error("Treffpunkt konnte nicht übernommen werden.");
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["match-request", params.id] });
     },
   });
 
@@ -223,6 +240,12 @@ export default function NachrichtenDetailPage() {
 
   const ownId = session?.user?.id;
   const closed = isClosed(matchRequest.status);
+  const negotiation = deriveNegotiationState(
+    matchRequest.proposals,
+    matchRequest.meetingPointLat != null && matchRequest.meetingPointLng != null,
+    ownId ?? ""
+  );
+  const counterpartLabel = matchRequest.counterpartAlias ?? "Die andere Person";
 
   return (
     <main className="mx-auto flex max-w-2xl flex-col gap-6 p-6">
@@ -247,6 +270,46 @@ export default function NachrichtenDetailPage() {
           )}
           {!closed && (
             <>
+              {negotiation.headerState === "pending-awaiting-you" && negotiation.pendingProposal && (
+                <div className="flex flex-col gap-2 rounded-md border p-3">
+                  <p className="text-sm">
+                    <span className="font-medium">{counterpartLabel}</span> schlägt{" "}
+                    <span className="font-medium">{negotiation.pendingProposal.name}</span> vor.
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() =>
+                        respondMutation.mutate({ proposalId: negotiation.pendingProposal!.id, action: "reject" })
+                      }
+                      disabled={respondMutation.isPending}
+                    >
+                      Ablehnen
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={() =>
+                        respondMutation.mutate({ proposalId: negotiation.pendingProposal!.id, action: "accept" })
+                      }
+                      disabled={respondMutation.isPending}
+                    >
+                      Zusagen
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    …oder mach unten einen Gegenvorschlag.
+                  </p>
+                </div>
+              )}
+              {negotiation.headerState === "pending-awaiting-them" && negotiation.pendingProposal && (
+                <p className="text-sm text-muted-foreground">
+                  Dein Vorschlag <span className="font-medium">{negotiation.pendingProposal.name}</span> wartet
+                  auf eine Antwort.
+                </p>
+              )}
+              {negotiation.canPropose && (
+                <>
               <div className="flex flex-col gap-2 border-b pb-3">
                 <div className="flex items-center justify-between">
                   <p className="font-medium">Vorschläge in eurer Nähe</p>
@@ -324,10 +387,16 @@ export default function NachrichtenDetailPage() {
                               <Button
                                 type="button"
                                 variant="outline"
-                                onClick={() => applySuggestionMutation.mutate(suggestion)}
-                                disabled={applySuggestionMutation.isPending}
+                                onClick={() =>
+                                  proposeMutation.mutate({
+                                    name: suggestion.name,
+                                    lat: suggestion.lat,
+                                    lng: suggestion.lng,
+                                  })
+                                }
+                                disabled={proposeMutation.isPending}
                               >
-                                Übernehmen
+                                Vorschlagen
                               </Button>
                             )}
                           </div>
@@ -343,25 +412,26 @@ export default function NachrichtenDetailPage() {
                           Weitere 10 laden
                         </Button>
                       )}
-                    {applySuggestionMutation.isError && (
+                    {proposeMutation.isError && (
                       <p className="text-sm text-destructive">
-                        {(applySuggestionMutation.error as Error).message}
+                        {(proposeMutation.error as Error).message}
                       </p>
                     )}
                   </>
                 )}
               </div>
               <form
-                onSubmit={meetingPointForm.handleSubmit((values) => meetingPointMutation.mutate(values))}
+                onSubmit={meetingPointForm.handleSubmit((values) =>
+                  proposeMutation.mutate({ query: values.meetingPointQuery })
+                )}
                 className="flex gap-2"
               >
                 <Input placeholder="Treffpunkt vorschlagen…" {...meetingPointForm.register("meetingPointQuery")} />
-                <Button type="submit" disabled={meetingPointMutation.isPending}>
+                <Button type="submit" disabled={proposeMutation.isPending}>
                   Vorschlagen
                 </Button>
               </form>
-              {meetingPointMutation.isError && (
-                <p className="text-sm text-destructive">{(meetingPointMutation.error as Error).message}</p>
+                </>
               )}
             </>
           )}
@@ -397,17 +467,30 @@ export default function NachrichtenDetailPage() {
           <CardTitle>Nachrichten</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
-          {messages?.map((message) => {
-            const isOwn = ownId != null && message.senderId === ownId;
+          {mergeTimeline(messages ?? [], matchRequest.proposals).map((entry) => {
+            if (entry.kind === "message") {
+              const isOwn = ownId != null && entry.message.senderId === ownId;
+              return (
+                <div key={`m-${entry.id}`} className={cn("flex", isOwn ? "justify-end" : "justify-start")}>
+                  <div
+                    className={cn(
+                      "max-w-[75%] rounded-lg px-3 py-2 text-sm",
+                      isOwn ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
+                    )}
+                  >
+                    {entry.message.text}
+                  </div>
+                </div>
+              );
+            }
+            const p = entry.proposal;
+            const isOwn = ownId != null && p.proposedById === ownId;
+            const who = isOwn ? "Du" : counterpartLabel;
             return (
-              <div key={message.id} className={cn("flex", isOwn ? "justify-end" : "justify-start")}>
-                <div
-                  className={cn(
-                    "max-w-[75%] rounded-lg px-3 py-2 text-sm",
-                    isOwn ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
-                  )}
-                >
-                  {message.text}
+              <div key={`p-${entry.id}`} className="flex justify-center">
+                <div className="rounded-lg border px-3 py-2 text-center text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">{who}</span> schlägt{" "}
+                  <span className="font-medium text-foreground">{p.name}</span> vor · {proposalStatusLabel[p.status]}
                 </div>
               </div>
             );

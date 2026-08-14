@@ -171,7 +171,6 @@ export type HeaderState =
 
 export interface NegotiationState {
   pendingProposal: Proposal | null; // the single PENDING proposal, if any
-  canRespond: boolean;   // viewer is the counterpart of the pending proposal
   canPropose: boolean;   // no pending proposal blocking a new one from viewer
   headerState: HeaderState;
 }
@@ -183,11 +182,11 @@ export function deriveNegotiationState(
 ): NegotiationState;
 ```
 
-Rules: `pendingProposal` is the lone `PENDING` entry (or `null`). `canRespond`
-is true when a pending proposal exists and `viewerId !== proposedById`.
+Rules: `pendingProposal` is the lone `PENDING` entry (or `null`).
 `canPropose` is true when there is no pending proposal, **or** the viewer is the
 counterpart of the pending one (they may counter). `headerState` follows the
-enum above from (`pendingProposal`, who proposed it, `hasAgreedPoint`).
+enum above from (`pendingProposal`, who proposed it, `hasAgreedPoint`); the
+counterpart who may respond is exactly `headerState === "pending-awaiting-you"`.
 
 **`lib/timeline.ts`**
 
@@ -207,6 +206,18 @@ tiebreak (messages before proposals, or by id) keeps equal-timestamp ordering
 deterministic.
 
 ### 4. Detail-page UI — `app/nachrichten/[id]/page.tsx`
+
+> **Implementation note (deviation, accepted):** the shipped UI does not render
+> distinct `none`/`agreed` header copy. It keeps the pre-existing agreed-point
+> block ("Noch kein Treffpunkt festgelegt." + the map) and shows the
+> suggestion/free-text propose UI whenever `negotiation.canPropose` is true —
+> which covers the `none`, `agreed`, and counter cases uniformly. This is
+> functionally equivalent (proposing while agreed reopens negotiation); the
+> separate `none`/`agreed` labels and an explicit "Änderung vorschlagen"
+> affordance below were judged unnecessary polish. Because the counterpart of a
+> pending proposal is exactly `headerState === "pending-awaiting-you"`, the
+> banner reads that directly and `deriveNegotiationState` exposes no separate
+> `canRespond` field.
 
 Within the not-closed region:
 
@@ -271,8 +282,8 @@ detail page (not closed)
 - **Unit tests** for `lib/meetingPointNegotiation.ts`:
   - `none` when no proposals and no agreed point; `agreed` when an agreed point
     exists and nothing pending.
-  - `pending-awaiting-you` vs `pending-awaiting-them` by viewer identity.
-  - `canRespond` true only for the counterpart; false for the proposer.
+  - `pending-awaiting-you` vs `pending-awaiting-them` by viewer identity (the
+    counterpart who may respond is exactly `pending-awaiting-you`).
   - `canPropose` true with no pending, true for the counterpart of a pending
     one (counter), false for the proposer of a pending one.
   - Only a `PENDING` entry counts as pending (ACCEPTED/REJECTED/SUPERSEDED

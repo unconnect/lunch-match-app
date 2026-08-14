@@ -32,6 +32,13 @@ enum MatchStatus {
   WITHDRAWN
 }
 
+enum MeetingPointProposalStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  SUPERSEDED
+}
+
 model User {
   id                String             @id @default(cuid())
   accountId         String             @unique
@@ -48,9 +55,10 @@ model User {
   schritteziel      Int?
   createdAt         DateTime           @default(now())
 
-  sentRequests     MatchRequest[] @relation("FromUser")
-  receivedRequests MatchRequest[] @relation("ToUser")
-  messages         Message[]
+  sentRequests          MatchRequest[]         @relation("FromUser")
+  receivedRequests      MatchRequest[]         @relation("ToUser")
+  messages              Message[]
+  meetingPointProposals MeetingPointProposal[]
 }
 
 model MatchRequest {
@@ -65,9 +73,10 @@ model MatchRequest {
   meetingPointName String?
   createdAt        DateTime    @default(now())
 
-  fromUser User      @relation("FromUser", fields: [fromUserId], references: [id])
-  toUser   User      @relation("ToUser", fields: [toUserId], references: [id])
-  messages Message[]
+  fromUser  User                   @relation("FromUser", fields: [fromUserId], references: [id])
+  toUser    User                   @relation("ToUser", fields: [toUserId], references: [id])
+  messages  Message[]
+  proposals MeetingPointProposal[]
 
   @@index([fromUserId])
   @@index([toUserId])
@@ -82,6 +91,23 @@ model Message {
 
   matchRequest MatchRequest @relation(fields: [matchRequestId], references: [id])
   sender       User         @relation(fields: [senderId], references: [id])
+
+  @@index([matchRequestId])
+}
+
+model MeetingPointProposal {
+  id             String                     @id @default(cuid())
+  matchRequestId String
+  proposedById   String
+  name           String
+  lat            Float
+  lng            Float
+  status         MeetingPointProposalStatus @default(PENDING)
+  createdAt      DateTime                   @default(now())
+  resolvedAt     DateTime?
+
+  matchRequest MatchRequest @relation(fields: [matchRequestId], references: [id])
+  proposedBy   User         @relation(fields: [proposedById], references: [id])
 
   @@index([matchRequestId])
 }

@@ -8,10 +8,18 @@
 // This script WIPES existing messages, match requests, and users first, so
 // repeated `npm run db:seed` runs give the same clean data set rather than
 // accumulating. Don't run it against data you want to keep.
+import { writeFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { PrismaClient, type LocationPrecision, type Karrierelevel } from "@prisma/client";
 import { generateAccountId, generateRecoveryKey, hashRecoveryKey } from "../lib/identity";
 
 const prisma = new PrismaClient();
+
+// Where the demo credentials are persisted for `npm run dev` to reprint. The
+// recovery keys are only known at seed time (the DB stores only their hash),
+// so this file is the single record of them. Gitignored — local dev only.
+// (ESM module: resolve relative to this file via import.meta.url, not __dirname.)
+export const SEED_CREDENTIALS_PATH = fileURLToPath(new URL(".seeded-credentials.json", import.meta.url));
 
 interface DemoUserData {
   alias: string;
@@ -117,6 +125,9 @@ interface CreatedUser extends DemoUserData {
 
 async function wipe() {
   await prisma.message.deleteMany();
+  // Meeting-point proposals FK-reference a match request, so they must go
+  // before the match requests they belong to.
+  await prisma.meetingPointProposal.deleteMany();
   await prisma.matchRequest.deleteMany();
   await prisma.user.deleteMany();
 }
@@ -137,6 +148,24 @@ async function main() {
   for (const data of DEMO_USERS) {
     users.push(await createDemoUser(data));
   }
+
+  // Persist the credentials so `npm run dev` (see scripts/print-seeded-users.ts)
+  // can reprint the login list — the recovery keys exist nowhere else.
+  writeFileSync(
+    SEED_CREDENTIALS_PATH,
+    JSON.stringify(
+      users.map((u) => ({
+        alias: u.alias,
+        accountId: u.accountId,
+        recoveryKey: u.recoveryKey,
+        branche: u.branche,
+        brancheVisible: u.brancheVisible,
+        locationLabel: u.locationLabel,
+      })),
+      null,
+      2
+    ) + "\n"
+  );
 
   const byAlias = (alias: string) => {
     const u = users.find((x) => x.alias === alias);
