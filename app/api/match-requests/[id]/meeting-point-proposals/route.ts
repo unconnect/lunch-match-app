@@ -54,13 +54,19 @@ export async function POST(request: Request, { params }: { params: { id: string 
     });
     if (pending) {
       if (pending.proposedById === userId) {
-        return { conflict: true as const };
+        return { conflict: "own" as const };
       }
-      // Counter: supersede the counterpart's pending proposal.
-      await tx.meetingPointProposal.update({
-        where: { id: pending.id },
+      // Counter: supersede the counterpart's pending proposal. Status-guarded
+      // like the accept path — the counterpart can accept the very proposal
+      // we're superseding, and an unguarded update would overwrite that
+      // ACCEPTED row while the match request keeps the agreed point.
+      const superseded = await tx.meetingPointProposal.updateMany({
+        where: { id: pending.id, status: "PENDING" },
         data: { status: "SUPERSEDED", resolvedAt: new Date() },
       });
+      if (superseded.count !== 1) {
+        return { conflict: "raced" as const };
+      }
     }
     const proposal = await tx.meetingPointProposal.create({
       data: {
@@ -76,7 +82,12 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   if ("conflict" in result) {
     return NextResponse.json(
-      { error: "Dein Vorschlag wartet noch auf eine Antwort." },
+      {
+        error:
+          result.conflict === "own"
+            ? "Dein Vorschlag wartet noch auf eine Antwort."
+            : "Der Vorschlag hat sich gerade geändert. Bitte lade die Seite neu.",
+      },
       { status: 409 }
     );
   }
