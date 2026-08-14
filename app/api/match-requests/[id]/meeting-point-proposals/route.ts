@@ -1,5 +1,6 @@
 // app/api/match-requests/[id]/meeting-point-proposals/route.ts
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { getAuthorizedMatchRequest } from "@/lib/getAuthorizedMatchRequest";
@@ -48,37 +49,49 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const userId = session.user.id;
 
   // Enforce the one-pending invariant and handle "counter" atomically.
-  const result = await prisma.$transaction(async (tx) => {
-    const pending = await tx.meetingPointProposal.findFirst({
-      where: { matchRequestId: matchRequest.id, status: "PENDING" },
-    });
-    if (pending) {
-      if (pending.proposedById === userId) {
-        return { conflict: "own" as const };
-      }
-      // Counter: supersede the counterpart's pending proposal. Status-guarded
-      // like the accept path — the counterpart can accept the very proposal
-      // we're superseding, and an unguarded update would overwrite that
-      // ACCEPTED row while the match request keeps the agreed point.
-      const superseded = await tx.meetingPointProposal.updateMany({
-        where: { id: pending.id, status: "PENDING" },
-        data: { status: "SUPERSEDED", resolvedAt: new Date() },
+  let result: { proposal: { id: string } } | { conflict: "own" | "raced" };
+  try {
+    result = await prisma.$transaction(async (tx) => {
+      const pending = await tx.meetingPointProposal.findFirst({
+        where: { matchRequestId: matchRequest.id, status: "PENDING" },
       });
-      if (superseded.count !== 1) {
-        return { conflict: "raced" as const };
+      if (pending) {
+        if (pending.proposedById === userId) {
+          return { conflict: "own" as const };
+        }
+        // Counter: supersede the counterpart's pending proposal. Status-guarded
+        // like the accept path — the counterpart can accept the very proposal
+        // we're superseding, and an unguarded update would overwrite that
+        // ACCEPTED row while the match request keeps the agreed point.
+        const superseded = await tx.meetingPointProposal.updateMany({
+          where: { id: pending.id, status: "PENDING" },
+          data: { status: "SUPERSEDED", resolvedAt: new Date() },
+        });
+        if (superseded.count !== 1) {
+          return { conflict: "raced" as const };
+        }
       }
-    }
-    const proposal = await tx.meetingPointProposal.create({
-      data: {
-        matchRequestId: matchRequest.id,
-        proposedById: userId,
-        name: point.name,
-        lat: point.lat,
-        lng: point.lng,
-      },
+      const proposal = await tx.meetingPointProposal.create({
+        data: {
+          matchRequestId: matchRequest.id,
+          proposedById: userId,
+          name: point.name,
+          lat: point.lat,
+          lng: point.lng,
+        },
+      });
+      return { proposal };
     });
-    return { proposal };
-  });
+  } catch (error) {
+    // The partial unique index on (matchRequestId) WHERE status = 'PENDING' is
+    // what actually serializes two simultaneous proposals: READ COMMITTED lets
+    // both transactions above read "no pending row" and both insert.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      result = { conflict: "raced" };
+    } else {
+      throw error;
+    }
+  }
 
   if ("conflict" in result) {
     return NextResponse.json(

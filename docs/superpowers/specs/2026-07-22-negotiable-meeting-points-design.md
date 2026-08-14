@@ -85,8 +85,17 @@ model MeetingPointProposal {
 Add the back-relations on `MatchRequest` (`proposals MeetingPointProposal[]`)
 and `User` (`meetingPointProposals MeetingPointProposal[]`).
 
-- **Invariant:** at most one `PENDING` proposal per match request at a time,
-  enforced in the API within a transaction (not a DB constraint).
+- **Invariant:** at most one `PENDING` proposal per match request at a time.
+  Originally specified as API-only ("enforced in the API within a transaction,
+  not a DB constraint"); **revised after review** to a partial unique index
+  (`ON "MeetingPointProposal"("matchRequestId") WHERE status = 'PENDING'`,
+  migration `20260814082953_single_pending_meeting_point_proposal`). The
+  transactional check alone does not hold: Postgres defaults to READ COMMITTED,
+  which does not serialize the `findFirst` → `create`, so two participants
+  proposing simultaneously both insert. The second row would be invisible to
+  `deriveNegotiationState` (it takes the first `PENDING` entry) and resurface
+  once the first was resolved. The API check stays as the friendly path; the
+  index is the guarantee, and its `P2002` maps to the same `409`.
 - Accepting a proposal writes the flat `meetingPoint*` fields, so everything
   downstream of the agreed point is unchanged.
 - **No backfill:** existing set meeting points show as the agreed point with no
