@@ -31,6 +31,23 @@ export async function POST(request: Request, { params }: { params: { id: string 
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
+  const userId = session.user.id;
+
+  // Cheap conflict check before geocoding: `geocodeAddress` serializes every
+  // caller through a process-wide 1 req/s queue, so a call made only to be
+  // rejected below delays geocoding for everyone. Advisory only — the
+  // transaction re-checks authoritatively.
+  const ownPending = await prisma.meetingPointProposal.findFirst({
+    where: { matchRequestId: matchRequest.id, status: "PENDING", proposedById: userId },
+    select: { id: true },
+  });
+  if (ownPending) {
+    return NextResponse.json(
+      { error: "Dein Vorschlag wartet noch auf eine Antwort." },
+      { status: 409 }
+    );
+  }
+
   // Resolve to a concrete point; geocode free text.
   let point: { name: string; lat: number; lng: number };
   if ("query" in parsed.data) {
@@ -45,8 +62,6 @@ export async function POST(request: Request, { params }: { params: { id: string 
   } else {
     point = { name: parsed.data.name, lat: parsed.data.lat, lng: parsed.data.lng };
   }
-
-  const userId = session.user.id;
 
   // Enforce the one-pending invariant and handle "counter" atomically.
   let result: { proposal: { id: string } } | { conflict: "own" | "raced" };
