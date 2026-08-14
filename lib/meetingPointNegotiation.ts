@@ -27,12 +27,25 @@ export interface NegotiationState {
  * Derive the negotiation UI state from the proposal log. Pure: the single
  * PENDING entry (if any) is the live proposal; everything else follows from
  * who proposed it and whether an agreed point already exists.
+ *
+ * `viewerId` is null while the session is still loading. Every actor-specific
+ * decision below compares against it, so a placeholder id would flip the
+ * proposer into the responder role — hence the explicit read-only state
+ * instead: no pending proposal surfaced, nothing actionable.
  */
 export function deriveNegotiationState(
   proposals: Proposal[],
   hasAgreedPoint: boolean,
-  viewerId: string
+  viewerId: string | null
 ): NegotiationState {
+  if (viewerId === null) {
+    return {
+      pendingProposal: null,
+      canPropose: false,
+      headerState: hasAgreedPoint ? "agreed" : "none",
+    };
+  }
+
   const pendingProposal = proposals.find((p) => p.status === "PENDING") ?? null;
 
   // No pending proposal → anyone may propose. A pending proposal → only its

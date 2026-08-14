@@ -57,6 +57,21 @@ describe("deriveNegotiationState", () => {
     expect(s.headerState).toBe("none");
   });
 
+  it("stays read-only while the viewer is unknown (session still loading)", () => {
+    // `viewerId` is null until the session resolves. Guessing an id here would
+    // show the proposer their own proposal as one to answer.
+    const s = deriveNegotiationState([proposal({ proposedById: "alice" })], false, null);
+    expect(s.headerState).toBe("none");
+    expect(s.canPropose).toBe(false);
+    expect(s.pendingProposal).toBeNull();
+  });
+
+  it("reports 'agreed' for an unknown viewer when an agreed point exists", () => {
+    const s = deriveNegotiationState([proposal({ proposedById: "alice" })], true, null);
+    expect(s.headerState).toBe("agreed");
+    expect(s.canPropose).toBe(false);
+  });
+
   it("keeps the agreed point during a reopening (pending + agreed both present)", () => {
     // A new pending proposal exists while an earlier one was accepted.
     const s = deriveNegotiationState(

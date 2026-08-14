@@ -96,7 +96,7 @@ const messageSchema = z.object({ text: z.string().min(1).max(2000) });
 export default function NachrichtenDetailPage() {
   const params = useParams<{ id: string }>();
   const queryClient = useQueryClient();
-  const { data: session } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
   const [statusError, setStatusError] = useState<string | null>(null);
   const [toleranceSteps, setToleranceSteps] = useState(String(DEFAULT_OVERLAP_TOLERANCE_STEPS));
   const debouncedToleranceSteps = useDebouncedValue(toleranceSteps, 350);
@@ -236,14 +236,18 @@ export default function NachrichtenDetailPage() {
     },
   });
 
-  if (isLoading || !matchRequest) return <main className="p-6">Lädt…</main>;
+  // Wait for the session too: it races the match-request query, and every
+  // "is this mine?" decision below (proposals and messages alike) reads the
+  // viewer id. Rendering before it resolves shows the wrong actor's controls.
+  if (isLoading || !matchRequest || sessionStatus === "loading")
+    return <main className="p-6">Lädt…</main>;
 
-  const ownId = session?.user?.id;
+  const ownId = session?.user?.id ?? null;
   const closed = isClosed(matchRequest.status);
   const negotiation = deriveNegotiationState(
     matchRequest.proposals,
     matchRequest.meetingPointLat != null && matchRequest.meetingPointLng != null,
-    ownId ?? ""
+    ownId
   );
   const counterpartLabel = matchRequest.counterpartAlias ?? "Die andere Person";
 
