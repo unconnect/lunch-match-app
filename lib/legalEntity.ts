@@ -4,12 +4,9 @@
 // "Verantwortlicher" section of the Datenschutzerklärung (Art. 13 DSGVO) read
 // from here, so the details exist in exactly one place and cannot drift apart.
 //
-// ────────────────────────────────────────────────────────────────────────────
-// THESE ARE PLACEHOLDERS. Fill them in before the app is publicly reachable.
-// While `isPlaceholder` is true, both legal pages render a visible warning
-// instead of pretending to be valid — a wrong Impressum is worse than an
-// obviously unfinished one.
-// ────────────────────────────────────────────────────────────────────────────
+// If these ever go back to placeholder values, set `isPlaceholder` to true with
+// them: both legal pages then render a visible warning instead of pretending to
+// be valid, because a wrong Impressum is worse than an obviously unfinished one.
 
 export interface LegalEntity {
   /** Full legal name of the operator (natural person or company). */
@@ -32,13 +29,15 @@ export interface LegalEntity {
   isPlaceholder: boolean;
 }
 
+// Operated privately and non-commercially: no company, no trade register entry,
+// and no USt-IdNr. to list under § 27a UStG.
 export const LEGAL_ENTITY: LegalEntity = {
-  name: "TODO: vollständiger Name",
-  street: "TODO: Straße und Hausnummer",
-  city: "TODO: PLZ und Ort",
+  name: "Alexander Nikolas Reuber c/o POSTFLEX PFX-453-825",
+  street: "Emsdettener Straße 10",
+  city: "48268 Greven",
   country: "Deutschland",
-  email: "TODO: kontakt@example.org",
+  email: "moin@nikolasreuber.de",
   phone: undefined,
   vatId: undefined,
-  isPlaceholder: true,
+  isPlaceholder: false,
 };

@@ -214,13 +214,13 @@ while it ran on localhost.
   route and what survives it, the absence of account recovery, and the caveat
   that anonymous accounts make an erasure request hard to attribute to a person.
 
-- [ ] **P1** **Fill in `lib/legalEntity.ts`.** Both legal pages read the
-  operator's name, address and contact from there, and it still holds
-  placeholders — while `isPlaceholder` is true they render a visible warning
-  instead of pretending to be valid. Neither page is legally effective until
-  this is done, so it blocks any wider announcement of the public URL.
-  Worth a lawyer's eye on the wording too; the drafts are written from the code,
-  not from legal advice.
+- [x] **P1** **Fill in `lib/legalEntity.ts`.** Real operator details are in;
+  both pages render them and the placeholder warning is gone. Operated
+  privately and non-commercially, so no USt-IdNr. section.
+
+- [ ] **P3** Have the legal wording reviewed by someone qualified. Both drafts
+  were written from what the code does, not from legal advice — accurate about
+  the processing, but not a substitute for a lawyer's read.
 
 - [ ] **P2** **Reset the demo accounts on a schedule (~24 h).** The demo
   credentials in `lib/demoAccounts.ts` are public, so anyone can edit those
