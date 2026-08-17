@@ -191,6 +191,58 @@ implemented, reviewed, and merged into `main`. Nothing here is outstanding.
 
 ---
 
+## Public deployment
+
+Obligations and housekeeping that only exist because the app is publicly
+reachable at https://lunchmatch.nikolasreuber.de. None of these were needed
+while it ran on localhost.
+
+- [ ] **P1** **Account deletion.** There is currently no way for a user to
+  remove their own account, and no way for us to do it on request either —
+  accounts carry no email, so an erasure request cannot even be attributed to a
+  user. Since the app stores home or work coordinates, this is the largest gap.
+  Needs a `DELETE /api/identity` (or a destructive action on `/profil`) that
+  removes the user together with everything hanging off them: messages, meeting
+  point proposals, and match requests in both directions. Same FK ordering as
+  `wipe()` in `prisma/seed.ts`. Guard it behind an explicit confirmation, state
+  plainly that it is irreversible, and sign the session out afterwards.
+
+- [ ] **P1** **Impressum.** A publicly available site operated from Germany
+  generally needs one (DDG, formerly TMG). Static page at `/impressum`, linked
+  from the footer or the landing page next to the proof-of-concept notice.
+
+- [ ] **P1** **Datenschutzerklärung.** GDPR Art. 13 requires telling users what
+  is collected and why *before* they hand it over — and this app asks for a
+  location on the first screen after sign-up. Must cover at minimum: which data
+  is stored (alias, coordinates, branche, career level, messages), that the
+  chosen `LocationPrecision` controls only what other users see while exact
+  coordinates are kept server-side for distance maths, that Nominatim and
+  Overpass receive query data, the absence of any account recovery, and how to
+  delete an account once the item above exists. Static page at `/datenschutz`,
+  linked from the same places.
+
+- [ ] **P2** **Reset the demo accounts on a schedule (~24 h).** The demo
+  credentials in `lib/demoAccounts.ts` are public, so anyone can edit those
+  profiles and write into their conversations. Left alone, the demo data drifts
+  from the curated state the landing page promises and will eventually contain
+  something unpleasant.
+
+  **This must not reuse `prisma/seed.ts` as-is.** That script wipes *every*
+  user, match request and message — running it on a schedule would delete real
+  visitors' accounts daily, which is precisely what the two guards added in
+  `assertSeedingAllowed` / `assertNoRealAccounts` exist to prevent. What is
+  needed is a narrower reset that touches only rows belonging to the twelve demo
+  accounts: delete their messages, proposals and match requests, restore their
+  profile fields, and recreate the seeded conversations — leaving every other
+  account untouched. Worth extracting the demo-data definition out of the seed
+  script so both paths share one source of truth.
+
+  Delivery is open: a scheduled container in the Portainer stack is the obvious
+  fit (same shape as the backup sidecar), but the reset logic itself belongs in
+  a pure, testable module under `lib/` per the testing-scope rule in CLAUDE.md.
+
+---
+
 ## Feature enhancements
 
 Refinements to the matching and meeting-point flow, beyond what v1 shipped.

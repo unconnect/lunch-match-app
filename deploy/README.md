@@ -37,8 +37,8 @@ In `/etc/fstab` je eine Zeile ergänzen (ext4 empfohlen; `nofail`, damit der Pi 
 ohne angesteckte Platte bootet):
 
 ```
-PARTUUID="304c90fb-9143-fc4e-ae4e-850288de2ba5" /mnt/backup-primary ext4 defaults,nofail,noatime  0  2
-PARTUUID="164bac53-13a7-b645-95a2-e2478d7153d2" /mnt/backup-mirror ext4 defaults,nofail,noatime  0  2
+PARTUUID="<partuuid-platte-1>" /mnt/backup-primary ext4 defaults,nofail,noatime  0  2
+PARTUUID="<partuuid-platte-2>" /mnt/backup-mirror  ext4 defaults,nofail,noatime  0  2
 ```
 
 ```bash
