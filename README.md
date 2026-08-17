@@ -149,6 +149,72 @@ Gamification (leaderboard, badges, challenges, step account), the favourites
 list, and real fitness-tracker sync are described in the thesis and planned for
 v2 — see [TODO.md](TODO.md).
 
+## Public demo
+
+A live instance runs at <https://lunchmatch.nikolasreuber.de>. It is a proof of
+concept, and the landing page says so: the data set may be reset without warning,
+and accounts are anonymous and unrecoverable by design.
+
+Twelve seeded demo accounts let you try it without signing up. Their credentials
+live in [`lib/demoAccounts.ts`](lib/demoAccounts.ts) and are **deliberately
+public** — the landing page prints them and offers one-click sign-in. Because
+they are shared, their profiles and conversations drift; treat them as a
+sandbox, not as a curated tour.
+
+Anyone with an account can delete it from *Profil → Konto löschen*. Deletion
+erases the profile, the user's messages and their meeting-point proposals, and
+retires the credentials. The `User` row survives as an empty shell only because
+`MatchRequest` holds non-nullable foreign keys to it — that is what lets the
+other participant keep a readable, frozen conversation marked *Gelöschtes Konto*
+instead of watching a thread disappear. See
+[`lib/accountDeletion.ts`](lib/accountDeletion.ts).
+
+`/impressum` and `/datenschutz` are public pages; the privacy policy describes
+the actual processing, including that exact coordinates never leave the server
+at a finer precision than the user chose.
+
+## External services, and the limits that come with them
+
+Three unauthenticated third-party services are used, none of which needs an API
+key — a deliberate thesis constraint, so the project has no paid dependency and
+nothing to rotate:
+
+| Service | Used for | Client |
+|---|---|---|
+| Nominatim | turning a typed address into coordinates | [`lib/geocoding.ts`](lib/geocoding.ts) |
+| Overpass API | finding candidate meeting points nearby | [`lib/meetingPoints.ts`](lib/meetingPoints.ts) |
+| OpenStreetMap tile servers | the map tiles themselves | the `TileLayer` in `MapView` / `SingleMarkerMap` |
+
+Both API clients swallow failures and return empty or `null` rather than
+throwing, so an unreachable third party degrades a page instead of breaking it.
+Nominatim calls are serialised through a shared promise chain to honour its
+1 req/s policy; Overpass is deliberately not throttled because callers guarantee
+one call per discrete user action (the invariant is stated at the top of the
+file — re-check it before adding a caller).
+
+**The limits matter if this is ever more than a demo.** All three services are
+run by volunteers under usage policies that permit light, non-commercial traffic
+and explicitly rule out production or commercial-scale use. Any commercial
+version has to move to paid geocoding, a paid POI source, and a paid tile
+provider before it takes real traffic.
+
+That swap is contained: the two client modules above, plus the two `TileLayer`
+URLs. Nothing else in the codebase talks to a third party, and neither client
+leaks its shape into callers.
+
+Map data is © OpenStreetMap contributors, attributed in both map components as
+the ODbL requires.
+
+## Deployment
+
+Releases are cut on GitHub; the workflow builds arm64 images, pushes them to
+GHCR, and triggers a Portainer webhook that redeploys the stack on a Raspberry
+Pi behind SWAG. Database migrations run in the container entrypoint before the
+server starts, so a failed migration keeps the old container serving rather than
+bringing up a mismatched one.
+
+Full setup, rollback and backup/restore instructions: [`deploy/README.md`](deploy/README.md).
+
 ## Concept and research background
 
 The thesis behind this app (*Förderung sozialer Interaktion und Bewegung im
@@ -287,3 +353,12 @@ The full thesis is not published; I am happy to share the PDF on request.
 
 The user interface is in German, matching the thesis. Code, comments, and
 documentation are in English.
+
+## Licence
+
+The thesis and this implementation are the sole work of the author; no company
+or institute holds rights in them.
+
+No licence has been chosen yet, which means the default applies: **all rights
+reserved**. You are welcome to read the code and to fork it on GitHub, but no
+right to use, modify, redistribute or run it is granted.
