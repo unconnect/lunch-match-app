@@ -197,29 +197,30 @@ Obligations and housekeeping that only exist because the app is publicly
 reachable at https://lunchmatch.nikolasreuber.de. None of these were needed
 while it ran on localhost.
 
-- [ ] **P1** **Account deletion.** There is currently no way for a user to
-  remove their own account, and no way for us to do it on request either —
-  accounts carry no email, so an erasure request cannot even be attributed to a
-  user. Since the app stores home or work coordinates, this is the largest gap.
-  Needs a `DELETE /api/identity` (or a destructive action on `/profil`) that
-  removes the user together with everything hanging off them: messages, meeting
-  point proposals, and match requests in both directions. Same FK ordering as
-  `wipe()` in `prisma/seed.ts`. Guard it behind an explicit confirmation, state
-  plainly that it is irreversible, and sign the session out afterwards.
+- [x] **P1** **Account deletion.** `DELETE /api/identity`, confirmed by typing
+  one's own Account ID (re-checked server-side). Erases the profile, the user's
+  messages and meeting-point proposals, and the credentials; keeps the `User`
+  row as an empty shell because `MatchRequest` holds non-nullable FKs to it, so
+  the counterpart sees a tombstoned conversation rather than a vanished one. A
+  request whose other participant is already deleted is destroyed outright.
+  Tombstoned threads are frozen server-side (409 on messages, status changes and
+  proposals). Decision logic in `lib/accountDeletion.ts`.
 
-- [ ] **P1** **Impressum.** A publicly available site operated from Germany
-  generally needs one (DDG, formerly TMG). Static page at `/impressum`, linked
-  from the footer or the landing page next to the proof-of-concept notice.
+- [x] **P1** **Impressum and Datenschutzerklärung.** Public pages at
+  `/impressum` and `/datenschutz`, linked from a site-wide footer. The
+  Datenschutzerklärung documents what the code actually does: the stored fields,
+  the server-side coordinate coarsening and what each precision reveals,
+  Nominatim/Overpass/Cloudflare as recipients, the session cookie, the deletion
+  route and what survives it, the absence of account recovery, and the caveat
+  that anonymous accounts make an erasure request hard to attribute to a person.
 
-- [ ] **P1** **Datenschutzerklärung.** GDPR Art. 13 requires telling users what
-  is collected and why *before* they hand it over — and this app asks for a
-  location on the first screen after sign-up. Must cover at minimum: which data
-  is stored (alias, coordinates, branche, career level, messages), that the
-  chosen `LocationPrecision` controls only what other users see while exact
-  coordinates are kept server-side for distance maths, that Nominatim and
-  Overpass receive query data, the absence of any account recovery, and how to
-  delete an account once the item above exists. Static page at `/datenschutz`,
-  linked from the same places.
+- [ ] **P1** **Fill in `lib/legalEntity.ts`.** Both legal pages read the
+  operator's name, address and contact from there, and it still holds
+  placeholders — while `isPlaceholder` is true they render a visible warning
+  instead of pretending to be valid. Neither page is legally effective until
+  this is done, so it blocks any wider announcement of the public URL.
+  Worth a lawyer's eye on the wording too; the drafts are written from the code,
+  not from legal advice.
 
 - [ ] **P2** **Reset the demo accounts on a schedule (~24 h).** The demo
   credentials in `lib/demoAccounts.ts` are public, so anyone can edit those
