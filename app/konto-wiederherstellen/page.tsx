@@ -10,6 +10,7 @@ import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ProofOfConceptNotice } from "@/components/ProofOfConceptNotice";
 
 const schema = z.object({
   accountId: z.string().min(1, "Account-ID wird benötigt"),
@@ -46,6 +47,7 @@ export default function KontoWiederherstellenPage() {
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-4 p-6">
       <h1 className="text-2xl font-semibold">Konto wiederherstellen</h1>
+      <ProofOfConceptNotice />
       <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-3">
         <div className="flex flex-col gap-1">
           <Label htmlFor="accountId">Account-ID</Label>

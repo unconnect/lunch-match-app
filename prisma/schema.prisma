@@ -1,5 +1,14 @@
 generator client {
   provider = "prisma-client-js"
+  // The Docker image is built on the amd64 CI runner but runs on an arm64
+  // Raspberry Pi. The Prisma query engine is a native binary chosen at
+  // `prisma generate` time, so the arm64 target must be requested explicitly
+  // or the container dies at boot with "Query engine binary for current
+  // platform not found". "native" keeps local development working.
+  // The target string tracks the runtime base image (Debian bookworm = glibc +
+  // OpenSSL 3.0); switching to an Alpine base would make it
+  // linux-musl-arm64-openssl-3.0.x instead.
+  binaryTargets = ["native", "linux-arm64-openssl-3.0.x"]
 }
 
 datasource db {

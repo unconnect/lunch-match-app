@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { DemoLogins } from "@/components/DemoLogins";
+import { ProofOfConceptNotice } from "@/components/ProofOfConceptNotice";
 
 type Step = "start" | "created";
 
@@ -62,11 +64,12 @@ export default function LandingPage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-6 p-6">
+    <main className="mx-auto flex min-h-screen max-w-lg flex-col justify-center gap-6 p-6">
       <h1 className="text-2xl font-semibold">Lunch Match</h1>
 
       {step === "start" && (
         <>
+          <ProofOfConceptNotice />
           <p>
             Finde jemanden für eine gemeinsame Mittagspause in deiner Nähe — ganz ohne
             E-Mail-Adresse oder Passwort.
@@ -83,6 +86,7 @@ export default function LandingPage() {
           {createIdentityMutation.isError && (
             <p className="text-sm text-destructive">{createIdentityMutation.error.message}</p>
           )}
+          <DemoLogins />
         </>
       )}
 

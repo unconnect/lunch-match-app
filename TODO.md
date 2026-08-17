@@ -339,6 +339,11 @@ Refinements to the matching and meeting-point flow, beyond what v1 shipped.
 - [ ] **P3** Add preferred Meeting-Times. 
   - Filter matches based on that.
   - Filter Meeting Points based on that.
+- [ ] Better UX / UI for "Match me". It was unclear to me that it instantly sends 
+      the request when clicked. Maybe a toast or some other kind of visual 
+      feedback should indicate that. Or a confirmation dialog should be added
+      before an actual request it sent.
+- [ ] Enhance the detail view: The wireframe shows it a bit different and in two columns.
 
 ---
 
@@ -406,8 +411,19 @@ Described in `docs/superpowers/specs/2026-07-15-lunch-match-app-design.md`.
 
 ## Infrastructure & quality
 
-- [ ] **P2** Deployment: no target chosen yet. Needs a hosted PostgreSQL and
-  `AUTH_SECRET` in the environment.
+- [x] **P2** Deployment: Raspberry Pi (arm64) behind SWAG, released via GitHub
+  Release → GHCR → Portainer webhook. See `deploy/README.md` for the flow and
+  the one-time host setup. Public at https://lunchmatch.nikolasreuber.de.
+- [ ] **P3** Release builds run fully under QEMU emulation, which is slow. The
+  cross-build shortcut (build on the amd64 runner, ship arm64) is *not* viable:
+  `binaryTargets` can retarget Prisma's query engine, but the schema engine used
+  by `prisma migrate deploy` is downloaded for whichever platform ran `npm ci`
+  and has no equivalent knob, so a cross-built image cannot migrate. The way out
+  is a native arm64 runner, not cross-compilation. See the header comment in
+  `Dockerfile`.
+- [ ] **P3** Backup restores are only verified by hand. Worth a scripted drill
+  (restore into a scratch database, count rows) before the demo carries data
+  anyone cares about.
 - [ ] **P3** Automated E2E coverage (Playwright) for the create-account → profile
   → match → chat path. Deliberately excluded from v1; the manual walkthrough in
   Task 24 is the current substitute.

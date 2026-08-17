@@ -1,0 +1,103 @@
+# Lunch Match — Portainer stack for the Raspberry Pi.
+#
+# Paste this into Portainer's stack editor (Stacks -> Add stack -> Web editor).
+# Every ${VAR} below comes from the stack's own "Environment variables"
+# section; see deploy/README.md for the list and for the one-time host setup.
+#
+# Network layout is the security boundary here:
+#   * db and backup sit on `internal` only — no route from outside the stack.
+#   * web additionally joins `swag_default`, where SWAG reaches it by container
+#     name. It needs no published port of its own.
+#   * db publishes 5432 on the Pi's loopback interface only, which is not
+#     reachable from the LAN. That exists so you can reach the database from
+#     your laptop through an SSH tunnel for the one-time seeding and for the
+#     occasional psql session.
+
+services:
+  db:
+    image: postgres:16
+    container_name: lunchmatch-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - lunchmatch_pgdata:/var/lib/postgresql/data
+    # Bound to 127.0.0.1 deliberately: reachable from the Pi itself (and so
+    # through `ssh -L`), never from the network. Port 5433 on the host to stay
+    # clear of any Postgres already installed there.
+    ports:
+      - "127.0.0.1:5433:5432"
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    image: ghcr.io/unconnect/lunch-match-app:latest
+    # SWAG proxies to this name — keep it in sync with deploy/swag/*.conf.
+    container_name: lunchmatch
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      AUTH_SECRET: ${AUTH_SECRET}
+      AUTH_URL: https://lunchmatch.nikolasreuber.de
+      # NextAuth v5 refuses to trust a forwarded Host header unless told to.
+      # Behind SWAG that is exactly what it receives, and without this the
+      # sign-in callbacks break in ways that look like broken cookies.
+      AUTH_TRUST_HOST: "true"
+    networks:
+      - internal
+      - swag_default
+    healthcheck:
+      # Node 20 has global fetch, so this needs nothing installed in the image.
+      # start_period covers the migration step in the entrypoint.
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  backup:
+    image: ghcr.io/unconnect/lunch-match-backup:latest
+    container_name: lunchmatch-backup
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB}
+      BACKUP_INTERVAL_SECONDS: "86400"
+      PRIMARY_RETENTION_DAYS: "30"
+      MIRROR_RETENTION_DAYS: "180"
+    volumes:
+      # Host paths of the two USB drives. Each must carry a
+      # .lunchmatch-backup-volume marker file or the sidecar refuses to write —
+      # that is what stops backups landing on the SD card when a drive fails to
+      # mount. See deploy/README.md.
+      - ${BACKUP_PRIMARY_PATH}:/backup/primary
+      - ${BACKUP_MIRROR_PATH}:/backup/mirror
+    networks:
+      - internal
+
+networks:
+  internal:
+  swag_default:
+    external: true
+
+volumes:
+  lunchmatch_pgdata:

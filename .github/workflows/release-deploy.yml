@@ -1,0 +1,71 @@
+name: Release Deploy
+
+# Release-driven, matching the pattern used for TrackFoundry: publishing a
+# GitHub release is the single action that ships. Nothing deploys on a push to
+# main, so an unfinished merge cannot reach the Pi.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  APP_IMAGE: ghcr.io/unconnect/lunch-match-app
+  BACKUP_IMAGE: ghcr.io/unconnect/lunch-match-backup
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Needed for any RUN step executed for a non-native platform. The app
+      # image is arranged to avoid those (see Dockerfile), but the backup image
+      # is built straight from postgres:16-bookworm and this keeps both honest.
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # arm64 only: the Pi is the only consumer of these images, and dropping
+      # amd64 halves the build. Add it back to `platforms` if you ever want to
+      # run the image on an x86 machine.
+      - name: Build and push app image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ${{ env.APP_IMAGE }}:${{ github.event.release.tag_name }}
+            ${{ env.APP_IMAGE }}:latest
+          cache-from: type=gha,scope=app
+          cache-to: type=gha,mode=max,scope=app
+
+      - name: Build and push backup image
+        uses: docker/build-push-action@v6
+        with:
+          context: deploy/backup
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ${{ env.BACKUP_IMAGE }}:${{ github.event.release.tag_name }}
+            ${{ env.BACKUP_IMAGE }}:latest
+          cache-from: type=gha,scope=backup
+          cache-to: type=gha,mode=max,scope=backup
+
+      # Both images are pushed before anything redeploys, so the stack never
+      # comes up with one new and one old container.
+      - name: Trigger Portainer redeploy
+        run: curl -fsSL --connect-timeout 10 --max-time 60 -X POST "${{ secrets.PORTAINER_WEBHOOK_URL }}"

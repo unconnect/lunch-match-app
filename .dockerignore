@@ -1,0 +1,24 @@
+# Rebuilt inside the image — copying host artefacts in would both bloat the
+# build context and risk shipping a stale local build.
+node_modules
+.next
+dist
+
+# Never build these into an image.
+.env
+.env.local
+prisma/.seeded-credentials.json
+
+# Not needed at build or runtime.
+.git
+.github
+.idea
+.vscode
+.superpowers
+.worktrees
+deploy
+docs
+coverage
+*.log
+*.tsbuildinfo
+.DS_Store

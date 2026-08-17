@@ -11,13 +11,15 @@
 import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { PrismaClient, type LocationPrecision, type Karrierelevel } from "@prisma/client";
-import { generateAccountId, generateRecoveryKey, hashRecoveryKey } from "../lib/identity";
+import { hashRecoveryKey } from "../lib/identity";
+import { DEMO_ACCOUNTS, findDemoAccount } from "../lib/demoAccounts";
 
 const prisma = new PrismaClient();
 
 // Where the demo credentials are persisted for `npm run dev` to reprint. The
-// recovery keys are only known at seed time (the DB stores only their hash),
-// so this file is the single record of them. Gitignored — local dev only.
+// authoritative list now lives in lib/demoAccounts.ts (the DB stores only the
+// hashes); this file stays as the convenience cache the predev printer reads,
+// enriched with each account's branche and location. Gitignored.
 // (ESM module: resolve relative to this file via import.meta.url, not __dirname.)
 export const SEED_CREDENTIALS_PATH = fileURLToPath(new URL(".seeded-credentials.json", import.meta.url));
 
@@ -132,15 +134,66 @@ async function wipe() {
   await prisma.user.deleteMany();
 }
 
+// Demo users get their credentials from the committed lib/demoAccounts.ts
+// rather than lib/identity.ts's generators, so that re-seeding yields the same
+// logins and the landing page can publish them. Real sign-ups still go through
+// the random generators via the identity route.
 async function createDemoUser(data: DemoUserData): Promise<CreatedUser> {
-  const accountId = generateAccountId();
-  const recoveryKey = generateRecoveryKey();
-  const recoveryKeyHash = await hashRecoveryKey(recoveryKey);
-  const user = await prisma.user.create({ data: { accountId, recoveryKeyHash, ...data } });
-  return { ...data, id: user.id, accountId, recoveryKey };
+  const demo = findDemoAccount(data.alias);
+  if (!demo) {
+    throw new Error(
+      `Keine Demo-Zugangsdaten für „${data.alias}“ gefunden — bitte in lib/demoAccounts.ts ergänzen.`
+    );
+  }
+  const recoveryKeyHash = await hashRecoveryKey(demo.recoveryKey);
+  const user = await prisma.user.create({
+    data: { accountId: demo.accountId, recoveryKeyHash, ...data },
+  });
+  return { ...data, id: user.id, accountId: demo.accountId, recoveryKey: demo.recoveryKey };
+}
+
+// This script deletes every user, match request and message before it writes.
+// On the deployed instance that would destroy real accounts, and those accounts
+// have no recovery path by design — so refuse unless someone very deliberately
+// opts in. The deployed stack sets APP_ENV=production; seeding it is a manual,
+// one-time bootstrap (see deploy/README.md), never part of the entrypoint.
+function assertSeedingAllowed() {
+  const isProduction =
+    process.env.APP_ENV === "production" || process.env.NODE_ENV === "production";
+  if (isProduction && process.env.SEED_FORCE !== "yes") {
+    console.error(
+      "\nAbbruch: Dieses Skript löscht ALLE Nutzer, Match-Anfragen und Nachrichten,\n" +
+        "und es läuft gerade gegen eine Produktivumgebung (APP_ENV/NODE_ENV=production).\n\n" +
+        "Wenn das wirklich beabsichtigt ist, erneut mit SEED_FORCE=yes ausführen.\n"
+    );
+    process.exit(1);
+  }
+}
+
+// The sharper of the two guards, because it looks at the data rather than at
+// the environment: if the database holds accounts this seed did not create,
+// they belong to real visitors — and by design there is no way to give them
+// back once deleted. Catches the case the env check misses, namely running the
+// seed from a laptop against the deployed database through an SSH tunnel.
+async function assertNoRealAccounts() {
+  const demoAccountIds = DEMO_ACCOUNTS.map((account) => account.accountId);
+  const realAccounts = await prisma.user.count({
+    where: { accountId: { notIn: demoAccountIds } },
+  });
+  if (realAccounts > 0 && process.env.SEED_FORCE !== "yes") {
+    console.error(
+      `\nAbbruch: Die Datenbank enthält ${realAccounts} Konto/Konten, die nicht aus diesem\n` +
+        "Seed stammen — vermutlich echte Besucher:innen. Diese Konten lassen sich nach\n" +
+        "dem Löschen nicht wiederherstellen.\n\n" +
+        "Wenn das wirklich beabsichtigt ist, erneut mit SEED_FORCE=yes ausführen.\n"
+    );
+    process.exit(1);
+  }
 }
 
 async function main() {
+  assertSeedingAllowed();
+  await assertNoRealAccounts();
   console.log("Bestehende Daten werden gelöscht und neu angelegt…\n");
   await wipe();
 
