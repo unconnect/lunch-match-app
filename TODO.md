@@ -486,7 +486,7 @@ Described in `docs/superpowers/specs/2026-07-15-lunch-match-app-design.md`.
 
 ---
 
-## Mobile optimiaztions
+## Mobile optimizations
 
 - [ ] main navigation has issues on small viewports. items collide into each other.
 - [ ] Messages views filter pushes out of the viewports leading to scrolling horizontically.
