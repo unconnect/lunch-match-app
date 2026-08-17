@@ -414,7 +414,7 @@ Described in `docs/superpowers/specs/2026-07-15-lunch-match-app-design.md`.
 - [x] **P2** Deployment: Raspberry Pi (arm64) behind SWAG, released via GitHub
   Release → GHCR → Portainer webhook. See `deploy/README.md` for the flow and
   the one-time host setup. Public at https://lunchmatch.nikolasreuber.de.
-- [ ] **P3** Release builds run fully under QEMU emulation, which is slow. The
+- [x] **P3** Release builds run fully under QEMU emulation, which is slow. The
   cross-build shortcut (build on the amd64 runner, ship arm64) is *not* viable:
   `binaryTargets` can retarget Prisma's query engine, but the schema engine used
   by `prisma migrate deploy` is downloaded for whichever platform ran `npm ci`
@@ -431,3 +431,10 @@ Described in `docs/superpowers/specs/2026-07-15-lunch-match-app-design.md`.
 - [ ] **P3** Overpass has no client-side rate limiting, unlike the Nominatim
   client. Judged acceptable because it fires once per page load rather than per
   keystroke — revisit if it ever moves behind a live-updating filter.
+
+---
+
+## Mobile optimiaztions
+
+- [ ] main navigation has issues on small viewports. items collide into each other.
+- [ ] Messages views filter pushes out of the viewports leading to scrolling horizontically.

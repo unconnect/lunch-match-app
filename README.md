@@ -6,7 +6,10 @@ It is the v1 implementation of a concept developed in a Bachelor thesis
 (*Wirtschaftsinformatik*, Alexander Nikolas Reuber). The thesis identified social
 isolation, lack of physical activity, and technology-related stress as health
 risks for remote workers, and proposed a lunch-matching application as a
-countermeasure. This repository turns that concept into working software.
+countermeasure. This repository turns that concept into working software — see
+[Concept and research background](#concept-and-research-background) for the
+method, the stakeholder findings that shaped the product, and the original
+wireframes.
 
 ## The idea
 
@@ -127,6 +130,7 @@ lib/
   validation/               zod schemas shared by client and API
 prisma/schema.prisma        User, MatchRequest, Message
 docs/superpowers/           design spec and implementation plan
+docs/wireframes/            original thesis wireframes
 ```
 
 ## Testing
@@ -144,6 +148,140 @@ Match me), and the request/chat/accept-decline flow.
 Gamification (leaderboard, badges, challenges, step account), the favourites
 list, and real fitness-tracker sync are described in the thesis and planned for
 v2 — see [TODO.md](TODO.md).
+
+## Concept and research background
+
+The thesis behind this app (*Förderung sozialer Interaktion und Bewegung im
+Homeoffice – Konzeption einer webbasierten Applikation*, FOM Hochschule für
+Oekonomie & Management, Hamburg, January 2023) asked:
+
+> How can an application be designed that brings people working remotely together
+> for a shared lunch break in their immediate vicinity — independent of their
+> employer — such that participants move regularly and reach a sufficient amount
+> of daily activity?
+
+The "independent of their employer" part is the gap. Existing lunch-matching
+products are sold B2B to HR departments and optimise for *internal* networking,
+which leaves out freelancers, people at small companies, and anyone whose
+colleagues aren't nearby.
+
+### How the concept was built
+
+A three-phase deductive–inductive–constructive process:
+
+| Phase | What happened |
+|---|---|
+| **Deductive** | Literature review across remote work, social isolation, physical activity, gamification and existing lunch-matching systems; first requirements derived from it |
+| **Inductive** | Requirements elicitation with a stakeholder group of five — employees, managers, a self-employed developer, a physiotherapist (health domain), an IT architect (non-functional requirements) |
+| **Constructive** | Application model plus a horizontal prototype of the UI as wireframes |
+
+Instead of transcribed expert interviews, requirements were elicited with the
+**"Nine Boxes"** questioning technique and translated directly into user stories,
+documented as epics in the **Connextra template** with acceptance criteria as
+Given/When/Then scenarios, so each is testable:
+
+```
+As a [role]
+I want [function]
+so that I achieve [goal].
+
+Scenario 1: <title>
+  Given   [context]
+  When    [event] occurs
+  Then    [outcome]
+```
+
+That produced eight epics: Core functions · Profile · Matching · Finding
+participants and meeting points · Messaging · Step account · Gamification ·
+Favourites. The first five are v1; the rest are in [TODO.md](TODO.md).
+
+### What the research changed about the product
+
+The useful part is where the stakeholder interviews *contradicted* the
+literature. Three findings, the screens they produced, and where they live in
+this codebase. (The wireframes are the original thesis artefacts, so they are in
+German; the numbered markers are the annotations from the thesis text.)
+
+**1. People don't want to be matched randomly — they want control.**
+
+The literature frames lunch-matching as an algorithmic pairing problem. The
+stakeholder group consistently wanted the opposite: filters on industry, role and
+career level, and a map to see who is actually nearby. This independently
+reproduces a finding by Karapantelakis & Gou (2014) — people don't extend enough
+trust to a preference-based algorithm to let it choose for them. Random matching
+survives only as an optional **Match me** button, as a game element.
+
+![Find match screen: map with nearby participants, filter sidebar, result list](docs/wireframes/find-match.png)
+
+> **1** Map showing participants within the search radius · **2** Result list,
+> collapsed · **3** Expanded entry with request and favourite actions · **4**
+> Filters: radius in steps, industry, position, career level, food preference ·
+> **5** "Match me" for optional random matching
+
+→ `app/match-finden/`, `lib/matchFilters.ts`
+
+Note the map tooltip: not a distance in kilometres, but *"1.000 Schritte /
+10 Minuten Fußweg"* — the unit the user actually plans in. See
+[How the search radius works](#how-the-search-radius-works).
+
+**2. Messaging became the centre of the app, not a side feature.**
+
+Participants wanted a short exchange *before* committing to meet a stranger — to
+gauge the other person's motivation and agree on a spot. One stakeholder compared
+it to haggling on a classifieds platform: time and place matter less than how the
+other person communicates. This made several literature-derived requirements
+obsolete (automated meeting-point selection, search-radius negotiation) and was
+the genuinely new insight of the work.
+
+![Meeting detail screen: meeting card with accept and decline on the left, message thread on the right](docs/wireframes/messaging.png)
+
+> **1** Proposed meeting point on the map · **2** Accept / decline / favourite for
+> the meeting itself · **3** Message thread between the two participants · **4**
+> Compose and send
+
+→ `app/nachrichten/`, `lib/meetingPointNegotiation.ts`
+
+The negotiable meeting points in v1 are a direct descendant of this finding: the
+meeting place is settled *between* the two people rather than assigned by the
+system.
+
+**3. Movement is a secondary motive; time is the primary constraint.**
+
+Nobody plans a break around step goals — they plan around how long the break is.
+So the search radius is derived from the step goal *combined with* walking
+duration rather than distance alone, and activity gets nudged indirectly, through
+gamification and a fitness-tracker interface reporting step counts back into the
+app.
+
+![Dashboard: badge slots, weekly leaderboard, challenges, step account](docs/wireframes/dashboard.png)
+
+> **1** Badge slots, earned through challenges · **2** Weekly top-5 leaderboard
+> with the user's own rank · **3** Challenges to accept · **4** Step account, fed
+> from recorded activity
+
+→ `lib/searchRadius.ts` for the radius; the dashboard itself is v2.
+
+### Open questions from the thesis
+
+The thesis was explicit about its limits. Where v1 answers one, it is noted:
+
+- **Privacy.** Location-based search raises obvious data-protection questions. The
+  thesis proposed letting users choose their own location granularity and
+  obfuscating marker positions. **v1 goes further:** anonymous accounts mean there
+  is no email address or password to protect in the first place (see
+  [Anonymous accounts](#anonymous-accounts)), plus `lib/locationPrivacy.ts`.
+- **Chat-app drift.** A messaging-centric design risks becoming yet another chat
+  client — or being read as a dating app — which would defeat the goal of getting
+  people to meet in person. Discussed mitigations: capping messages per request,
+  and unlocking free-text messaging only after a completed, positively rated
+  meeting. **Still open.**
+- **Density and viability.** The app needs enough users in an area to work at all,
+  which is unresolved for rural regions, as is monetisation. **Still open.**
+- **Method limits.** Five stakeholders is a small group, and a horizontal
+  prototype covers breadth, not depth — validating individual components needs a
+  vertical prototype. That is what this repository is.
+
+The full thesis is not published; I am happy to share the PDF on request.
 
 ## Language
 
