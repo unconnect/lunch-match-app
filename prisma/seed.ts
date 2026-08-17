@@ -177,8 +177,12 @@ function assertSeedingAllowed() {
 // seed from a laptop against the deployed database through an SSH tunnel.
 async function assertNoRealAccounts() {
   const demoAccountIds = DEMO_ACCOUNTS.map((account) => account.accountId);
+  // Deleted accounts are excluded: their Account ID is scrambled to a
+  // `deleted-…` placeholder, so they would otherwise look like strangers and
+  // block every reseed once a single demo account had been deleted. There is
+  // nothing personal left in those rows to protect.
   const realAccounts = await prisma.user.count({
-    where: { accountId: { notIn: demoAccountIds } },
+    where: { accountId: { notIn: demoAccountIds }, deletedAt: null },
   });
   if (realAccounts > 0 && process.env.SEED_FORCE !== "yes") {
     console.error(

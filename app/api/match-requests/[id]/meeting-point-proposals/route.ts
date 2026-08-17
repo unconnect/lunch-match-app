@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getAuthorizedMatchRequest } from "@/lib/getAuthorizedMatchRequest";
 import { geocodeAddress } from "@/lib/geocoding";
 import { createProposalSchema } from "@/lib/validation/meetingPointProposal";
+import { COUNTERPART_DELETED_ERROR, isCounterpartDeleted } from "@/lib/accountDeletion";
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const session = await auth();
@@ -16,6 +17,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
   const matchRequest = await getAuthorizedMatchRequest(params.id, session.user.id);
   if (!matchRequest) {
     return NextResponse.json({ error: "Nicht gefunden" }, { status: 404 });
+  }
+
+  if (isCounterpartDeleted(matchRequest, session.user.id)) {
+    return NextResponse.json({ error: COUNTERPART_DELETED_ERROR }, { status: 409 });
   }
 
   if (matchRequest.status === "DECLINED" || matchRequest.status === "WITHDRAWN") {

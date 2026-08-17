@@ -21,6 +21,7 @@ import { DEFAULT_OVERLAP_TOLERANCE_STEPS } from "@/lib/meetingSuggestions";
 import { orderSuggestionsIntoBatches, SUGGESTION_BATCH_SIZE } from "@/lib/meetingSuggestionsPaging";
 import { deriveNegotiationState, type Proposal } from "@/lib/meetingPointNegotiation";
 import { mergeTimeline } from "@/lib/timeline";
+import { DELETED_USER_ALIAS } from "@/lib/accountDeletion";
 
 const SingleMarkerMap = dynamic(() => import("./SingleMarkerMap").then((m) => m.SingleMarkerMap), { ssr: false });
 
@@ -31,6 +32,7 @@ interface MatchRequestDetail {
   status: MatchRequestStatus;
   type: "MANUAL" | "MATCH_ME";
   counterpartAlias: string | null;
+  counterpartDeleted: boolean;
   meetingPointName: string | null;
   meetingPointLat: number | null;
   meetingPointLng: number | null;
@@ -198,7 +200,9 @@ export default function NachrichtenDetailPage() {
     },
   });
 
-  const closedForSuggestions = matchRequest ? isClosed(matchRequest.status) : true;
+  const closedForSuggestions = matchRequest
+    ? isClosed(matchRequest.status) || matchRequest.counterpartDeleted
+    : true;
   const suggestionsQuery = useQuery<MeetingSuggestionsResponse>({
     queryKey: ["meeting-suggestions", params.id, debouncedToleranceSteps],
     enabled: suggestionsRequested && !closedForSuggestions,
@@ -249,17 +253,38 @@ export default function NachrichtenDetailPage() {
     return <main className="p-6">Lädt…</main>;
 
   const ownId = session?.user?.id ?? null;
-  const closed = isClosed(matchRequest.status);
+  // A deleted counterpart freezes the conversation exactly like a declined or
+  // withdrawn request: read-only, no compose box, no actions. Folding it into
+  // `closed` means every existing gate covers it, rather than each one needing
+  // to remember a second condition.
+  const counterpartDeleted = matchRequest.counterpartDeleted;
+  const closed = isClosed(matchRequest.status) || counterpartDeleted;
   const negotiation = deriveNegotiationState(
     matchRequest.proposals,
     matchRequest.meetingPointLat != null && matchRequest.meetingPointLng != null,
     ownId
   );
-  const counterpartLabel = matchRequest.counterpartAlias ?? "Die andere Person";
+  const counterpartLabel = counterpartDeleted
+    ? DELETED_USER_ALIAS
+    : matchRequest.counterpartAlias ?? "Die andere Person";
 
   return (
     <main className="mx-auto flex max-w-2xl flex-col gap-6 p-6">
-      <h1 className="text-2xl font-semibold">Treffen mit {matchRequest.counterpartAlias ?? "Teilnehmende Person"}</h1>
+      <h1 className="text-2xl font-semibold">
+        Treffen mit{" "}
+        {counterpartDeleted ? DELETED_USER_ALIAS : matchRequest.counterpartAlias ?? "Teilnehmende Person"}
+      </h1>
+
+      {counterpartDeleted && (
+        <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+          <p className="font-medium text-foreground">Diese Person hat ihr Konto gelöscht.</p>
+          <p className="mt-1">
+            Ihre Nachrichten und ihr Profil wurden dabei unwiderruflich entfernt. Deine eigenen
+            Nachrichten bleiben hier stehen, die Unterhaltung lässt sich aber nicht mehr
+            fortsetzen.
+          </p>
+        </div>
+      )}
 
       <Card>
         <CardHeader>

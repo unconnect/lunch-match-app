@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { DELETED_USER_ALIAS } from "@/lib/accountDeletion";
 
 interface MatchRequestSummary {
   id: string;
@@ -14,6 +15,7 @@ interface MatchRequestSummary {
   type: "MANUAL" | "MATCH_ME";
   createdAt: string;
   counterpartAlias: string | null;
+  counterpartDeleted: boolean;
 }
 
 const statusLabels: Record<MatchRequestSummary["status"], string> = {
@@ -73,7 +75,11 @@ export default function NachrichtenPage() {
               <Link key={mr.id} href={`/nachrichten/${mr.id}`}>
                 <Card>
                   <CardHeader className="flex-row items-center justify-between">
-                    <CardTitle>{mr.counterpartAlias ?? "Teilnehmende Person"}</CardTitle>
+                    <CardTitle>
+                      {mr.counterpartDeleted
+                        ? DELETED_USER_ALIAS
+                        : mr.counterpartAlias ?? "Teilnehmende Person"}
+                    </CardTitle>
                     <Badge variant={statusBadgeVariant[mr.status]}>{statusLabels[mr.status]}</Badge>
                   </CardHeader>
                   <CardContent className="text-sm text-muted-foreground">

@@ -25,6 +25,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null;
         }
 
+        // A deleted account leaves an empty shell row behind so conversations
+        // can still be shown to the counterpart. It must never be able to sign
+        // in. Its stored hash is not a valid bcrypt hash either, so this fails
+        // closed twice over.
+        if (user.deletedAt) {
+          return null;
+        }
+
         const valid = await verifyRecoveryKey(recoveryKey, user.recoveryKeyHash);
         if (!valid) {
           return null;

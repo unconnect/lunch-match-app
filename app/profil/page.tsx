@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DeleteAccountDialog } from "@/components/DeleteAccountDialog";
 
 interface ProfileResponse {
   alias: string | null;
@@ -218,6 +219,19 @@ export default function ProfilPage() {
               <p className="text-sm text-destructive">{mutation.error?.message}</p>
             )}
           </form>
+        </CardContent>
+      </Card>
+
+      <Card className="mt-6 border-destructive/40">
+        <CardHeader>
+          <CardTitle className="text-destructive">Konto löschen</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col items-start gap-3">
+          <p className="text-sm text-muted-foreground">
+            Entfernt dein Profil, deine Nachrichten und deine Zugangsdaten unwiderruflich. Da
+            Konten hier ohne E-Mail-Adresse auskommen, gibt es danach keinen Weg zurück.
+          </p>
+          <DeleteAccountDialog />
         </CardContent>
       </Card>
     </main>

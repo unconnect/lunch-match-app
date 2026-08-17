@@ -63,6 +63,13 @@ model User {
   karrierelevel     Karrierelevel?
   schritteziel      Int?
   createdAt         DateTime           @default(now())
+  // Set when the user deletes their account. The row survives only because
+  // MatchRequest holds non-nullable foreign keys to it: everything personal is
+  // erased and the credentials are made unusable, but the id remains so the
+  // counterpart's conversation can still be displayed as a tombstone. A row
+  // with deletedAt set must never authenticate or appear as a match candidate.
+  // See lib/accountDeletion.ts.
+  deletedAt         DateTime?
 
   sentRequests          MatchRequest[]         @relation("FromUser")
   receivedRequests      MatchRequest[]         @relation("ToUser")

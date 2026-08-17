@@ -20,8 +20,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Du kannst dir nicht selbst eine Anfrage senden." }, { status: 400 });
   }
 
+  // A deleted account keeps an empty row for the benefit of existing
+  // conversations; it must not be possible to start a new one with it. Same
+  // 404 as a genuinely missing user — there is nothing to tell the sender.
   const toUser = await prisma.user.findUnique({ where: { id: parsed.data.toUserId } });
-  if (!toUser) {
+  if (!toUser || toUser.deletedAt) {
     return NextResponse.json({ error: "Person nicht gefunden." }, { status: 404 });
   }
 
@@ -93,6 +96,7 @@ export async function GET(request: Request) {
       type: mr.type,
       createdAt: mr.createdAt,
       counterpartAlias: counterpart.alias,
+      counterpartDeleted: counterpart.deletedAt != null,
     };
   });
 

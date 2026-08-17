@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { getAuthorizedMatchRequest } from "@/lib/getAuthorizedMatchRequest";
 import { respondProposalSchema } from "@/lib/validation/meetingPointProposal";
+import { COUNTERPART_DELETED_ERROR, isCounterpartDeleted } from "@/lib/accountDeletion";
 
 export async function PATCH(
   request: Request,
@@ -17,6 +18,10 @@ export async function PATCH(
   const matchRequest = await getAuthorizedMatchRequest(params.id, session.user.id);
   if (!matchRequest) {
     return NextResponse.json({ error: "Nicht gefunden" }, { status: 404 });
+  }
+
+  if (isCounterpartDeleted(matchRequest, session.user.id)) {
+    return NextResponse.json({ error: COUNTERPART_DELETED_ERROR }, { status: 409 });
   }
 
   if (matchRequest.status === "DECLINED" || matchRequest.status === "WITHDRAWN") {

@@ -74,8 +74,16 @@ export async function GET(request: Request) {
 
   const origin = { lat: currentUser.lat, lng: currentUser.lng };
 
+  // deletedAt is filtered explicitly rather than relying on the fact that a
+  // deleted row also has its coordinates cleared — the exclusion should not
+  // depend on a side effect of how deletion happens to blank fields.
   const otherUsers = await prisma.user.findMany({
-    where: { id: { not: currentUser.id }, lat: { not: null }, lng: { not: null } },
+    where: {
+      id: { not: currentUser.id },
+      deletedAt: null,
+      lat: { not: null },
+      lng: { not: null },
+    },
     select: {
       id: true,
       alias: true,

@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { getAuthorizedMatchRequest } from "@/lib/getAuthorizedMatchRequest";
 import { updateMatchRequestSchema } from "@/lib/validation/matchRequest";
+import { COUNTERPART_DELETED_ERROR, isCounterpartDeleted } from "@/lib/accountDeletion";
 
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   const session = await auth();
@@ -17,6 +18,10 @@ export async function GET(request: Request, { params }: { params: { id: string }
   }
 
   const counterpart = matchRequest.fromUserId === session.user.id ? matchRequest.toUser : matchRequest.fromUser;
+  // The counterpart deleted their account: the conversation survives as a
+  // tombstone (their messages are already gone), but nothing more can happen
+  // in it. Every action is withdrawn below, not merely hidden by the client.
+  const counterpartDeleted = counterpart.deletedAt != null;
 
   const proposals = await prisma.meetingPointProposal.findMany({
     where: { matchRequestId: matchRequest.id },
@@ -28,6 +33,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
     status: matchRequest.status,
     type: matchRequest.type,
     counterpartAlias: counterpart.alias,
+    counterpartDeleted,
     meetingPointName: matchRequest.meetingPointName,
     meetingPointLat: matchRequest.meetingPointLat,
     meetingPointLng: matchRequest.meetingPointLng,
@@ -42,8 +48,10 @@ export async function GET(request: Request, { params }: { params: { id: string }
       resolvedAt: p.resolvedAt,
     })),
     // Recipient may accept/decline; sender may withdraw their own request.
-    canRespond: matchRequest.toUserId === session.user.id,
-    canWithdraw: matchRequest.fromUserId === session.user.id,
+    // Neither is offered once the counterpart is gone — there is no one left
+    // for a lunch date with.
+    canRespond: !counterpartDeleted && matchRequest.toUserId === session.user.id,
+    canWithdraw: !counterpartDeleted && matchRequest.fromUserId === session.user.id,
   });
 }
 
@@ -56,6 +64,10 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   const matchRequest = await getAuthorizedMatchRequest(params.id, session.user.id);
   if (!matchRequest) {
     return NextResponse.json({ error: "Nicht gefunden" }, { status: 404 });
+  }
+
+  if (isCounterpartDeleted(matchRequest, session.user.id)) {
+    return NextResponse.json({ error: COUNTERPART_DELETED_ERROR }, { status: 409 });
   }
 
   const body = await request.json();
